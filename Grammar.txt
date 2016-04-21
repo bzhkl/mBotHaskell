@@ -1,0 +1,11 @@
+Expressions
+-------------------------------------------------------------
+expr  ::= var | const | (expr) | unop expr | expr unop | expr duop expr
+var   ::= letter { letter | digit }*
+const ::= true | false
+unop  ::= ++ | -- | + | - | ! |
+duop  ::= && | || | == | != | + | - | * | / |
+
+Statements
+-------------------------------------------------------------
+stmt ::= nop | var := expr | if expr then stmt else stmt fi | while expr do stmt od | stmt { ; stmt }+
