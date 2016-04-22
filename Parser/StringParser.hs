@@ -1,6 +1,7 @@
 --This module is used for parsing characters and strings.
-module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMatch) where
+module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMatch, identifier, bracket, apply', parse') where
   import Control.Monad
+  import Data.Char
   import Parser
   import SequenceParser
 
@@ -25,6 +26,10 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMa
   notToken :: Char -> Parser Char
   notToken c = spot (/= c)
 
+  -- Match something between brackets
+  bracket :: Parser a -> Parser b -> Parser c -> Parser b
+  bracket o p c = o >> p >>= \x -> c >> return x
+
   --Parse a token surounded by optional whitespace
   wToken :: Char -> Parser Char
   wToken t = do
@@ -46,4 +51,29 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMa
     return m
 
   whitespace :: Parser String
-  whitespace = star (token ' ')
+  whitespace = star (spot isSpace)
+
+  identifier :: Parser String
+  identifier = do
+    x <- spot isLower
+    xs <- star $ spot isAlphaNum
+    return (x:xs)
+
+
+  --Alternative for the parser's apply method which ignores whitespace
+  --at the beginning and ending of the string.
+  apply' :: Parser a -> String -> [(a, String)]
+  apply' p = apply $ do
+    whitespace
+    x <- p
+    whitespace
+    return x
+
+  --Alternative for the parser's parse mehtod which ignores whitespace
+  --at the beginning and ending of the string.
+  parse' :: Eq a => Parser a -> String -> a
+  parse' m s = one[ x | (x,t) <- apply' m s, t == "" ]
+      where one [] = error "no parse"
+            one [x] = x
+            one xs | length xs > 1 = error "ambiguous parse"
+            one _ = error "Invalid"

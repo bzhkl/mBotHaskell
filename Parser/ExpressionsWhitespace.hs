@@ -8,7 +8,6 @@ module Expressions (evalExp, parseExp) where
   -- The 'Type' datatype represents a primitive value in our little language.
   data Type = MyInt Int | MyDecimal Double | MyStr String | MyBool Bool
        deriving (Show, Eq)
-
   -- The 'Exp' datatype represents an expression which can be evaluated.
   data Exp = Lit Type  | Binary Exp Op Exp
        deriving (Show, Eq)
@@ -40,65 +39,84 @@ module Expressions (evalExp, parseExp) where
   parseBinop = parsePlus `mplus` parseMin `mplus` parseMul `mplus`
                parseDiv  `mplus` parseAnd `mplus` parseOr
 
-  --Parse a boolean value
+  --Parse a boolean value, ignoring whitespace
   parseBool :: Parser Exp
   parseBool = do
     s <- wMatch "true" `mplus` wMatch "false"
     return . Lit . MyBool $ s == "true"
 
-  --Parse a string
+  --Parse a string, ignoring whitespace
   parseString :: Parser Exp
   parseString = do
-    token '"'
+    whitespace >> token '"'
     str <- star $ notToken '"'
-    token '"'
+    token '"' >> whitespace
     return . Lit . MyStr $ str
 
-  --Parse an int value
+  --Parse an int value, ignoring whitespace.
   parseInt :: Parser Exp
-  parseInt = fmap (Lit . MyInt) NumberParser.parseInt
+  parseInt = do
+    whitespace
+    n <- NumberParser.parseInt
+    whitespace
+    return . Lit . MyInt $ n
 
   --Parse the plus operator (can be used with integers and strings)
   parsePlus :: Parser Exp
-  parsePlus = makeBinop "+" (:+:)
+  parsePlus = do
+    wToken '('
+    a <- parseExp
+    wToken '+'
+    b <- parseExp
+    wToken ')'
+    return $ Binary a (:+:) b
 
   --Parse a substraction
   parseMin :: Parser Exp
-  parseMin = makeBinop "-" (:-:)
+  parseMin = do
+    wToken '('
+    a <- parseExp
+    wToken '-'
+    b <- parseExp
+    wToken ')'
+    return $ Binary a (:-:) b
 
   --Parse a multiplication
   parseMul :: Parser Exp
-  parseMul = makeBinop "*" (:*:)
+  parseMul = do
+    wToken '('
+    a <- parseExp
+    wToken '*'
+    b <- parseExp
+    wToken ')'
+    return $ Binary a (:*:) b
 
   --Parse a division
   parseDiv :: Parser Exp
-  parseDiv = makeBinop "/" (:/:)
+  parseDiv = do
+    wToken '('
+    a <- parseExp
+    wToken '/'
+    b <- parseExp
+    wToken ')'
+    return $ Binary a (:/:) b
 
   --Parse a boolean AND operation
   parseAnd :: Parser Exp
-  parseAnd = makeBinop "&&" (:&&:)
+  parseAnd = do
+    wToken '('
+    a <- parseExp
+    wMatch "&&"
+    b <- parseExp
+    wToken ')'
+    return $ Binary a (:&&:) b
 
   --Parse a boolean NOT operation
   parseOr :: Parser Exp
-  parseOr = makeBinop "||" (:||:)
-
-  makeBinop :: String -> Op -> Parser Exp
-  makeBinop s op = do
-    token '('
+  parseOr = do
+    wToken '('
     a <- parseExp
-    match s
+    wMatch "||"
     b <- parseExp
-    token ')'
-    return $ Binary a op b
-
-  chainl :: Parser a -> Parser (a -> a -> a) -> a -> Parser a
-  chainl p op a = (p `chainl1` op) `mplus` return a
-
-  chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
-  p `chainl1` op = do {a <- p; rest a}
-    where
-      rest a = (do
-        f <- op
-        b <- p
-        rest (f a b))
-        `mplus` return a
+    wToken ')'
+    return $ Binary a (:||:) b
