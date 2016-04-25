@@ -9,12 +9,10 @@ module Parser (Parser (..), apply, parse, (+++)) where
   apply (Parser f) = f
 
   -- Return parsed value, assuming at least one successful parse
-  parse :: Eq a => Parser a -> String -> a
+  parse :: Parser a -> String -> a
   parse m s = one[ x | (x,t) <- apply m s, t == "" ]
       where one [] = error "no parse"
-            one [x] = x
-            one xs | length xs > 1 = error "ambiguous parse"
-            one _ = error "Invalid"
+            one (x:_) = x
 
   instance Functor Parser where
     fmap = liftM

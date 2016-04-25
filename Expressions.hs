@@ -4,57 +4,61 @@ module Expressions (evalExp, parseExp, Exp) where
   import qualified NumberParser as NumParser
   import StringParser
   import SequenceParser
+  import Interpreter
 
   type Environment = [(Name,Value)]
   type Name = String
 
   -- The 'Type' datatype represents a primitive value in our little language.
   data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool
-       deriving (Show, Eq)
+       deriving (Show)
 
   -- The 'Exp' datatype represents an expression which can be evaluated.
-  data Exp = Lit Value  | Binary Exp Op Exp | Var Name
-       deriving (Show, Eq)
+  data Exp = Lit Value  | BinOp Exp Op Exp | Var Name
+       deriving (Show)
 
-  -- The 'Op' datatype represents a unary or binary operation
+  -- The 'Op' datatype represents a unary or BinOp operation
   data Op = (:+:)  | (:-:)  | (:*:)  |
             (:/:)  | (:&&:) | (:||:) |
             (:>:)  | (:>=:) | (:<:)  |
             (:<=:) | (:==:) | (:!=:)
-            deriving (Show, Eq)
+            deriving (Show)
 
-  evalExp :: Exp -> Environment -> Value
-  evalExp (Lit t) _               = t
-  evalExp (Binary ex1 op ex2) env = evalBinop (evalExp ex1 env) op (evalExp ex2 env)
+  evalExp :: Exp -> Environment -> M Value
+  evalExp (Lit t) _               = return t
+  evalExp (BinOp ex1 op ex2) env = do
+    v1 <- evalExp ex1 env
+    v2 <- evalExp ex2 env
+    evalBinop v1 op v2
   evalExp (Var n) env             = lookup n env
 
-  lookup               :: Name ->Environment -> Value
-  lookup _ []          = error "Lookup failed"
-  lookup x ((y,b):e)   = if x==y then b else lookup x e
+  lookup               :: Name ->Environment -> M Value
+  lookup x []          = errorM ("Unbound variable: " ++ x)
+  lookup x ((y,b):e)   = if x==y then return b else lookup x e
 
-  evalBinop :: Value -> Op -> Value -> Value
-  evalBinop (MyInt  a) (:+:)  (MyInt  b) = MyInt  (a + b)
-  evalBinop (MyInt  a) (:-:)  (MyInt  b) = MyInt  (a - b)
-  evalBinop (MyInt  a) (:*:)  (MyInt  b) = MyInt  (a * b)
-  evalBinop (MyInt  a) (:/:)  (MyInt  b) = MyInt  (a `quot` b)
-  evalBinop (MyDec  a) (:+:)  (MyDec  b) = MyDec  (a + b)
-  evalBinop (MyDec  a) (:-:)  (MyDec  b) = MyDec  (a - b)
-  evalBinop (MyDec  a) (:*:)  (MyDec  b) = MyDec  (a * b)
-  evalBinop (MyDec  a) (:/:)  (MyDec  b) = MyDec  (a / b)
-  evalBinop (MyStr  a) (:+:)  (MyStr  b) = MyStr  (a ++ b)
-  evalBinop (MyBool a) (:&&:) (MyBool b) = MyBool (a && b)
-  evalBinop (MyBool a) (:||:) (MyBool b) = MyBool (a || b)
-  evalBinop (MyInt  a) (:>:)  (MyInt b)  = MyBool (a > b)
-  evalBinop (MyInt  a) (:<:)  (MyInt b)  = MyBool (a < b)
-  evalBinop (MyInt  a) (:>=:) (MyInt b)  = MyBool (a >= b)
-  evalBinop (MyInt  a) (:<=:) (MyInt b)  = MyBool (a <= b)
-  evalBinop _ _ _                        = error "Invalid operation"
+  evalBinop :: Value -> Op -> Value -> M Value
+  evalBinop (MyInt  a) (:+:)  (MyInt  b) = return $ MyInt  (a + b)
+  evalBinop (MyInt  a) (:-:)  (MyInt  b) = return $ MyInt  (a - b)
+  evalBinop (MyInt  a) (:*:)  (MyInt  b) = return $ MyInt  (a * b)
+  evalBinop (MyInt  a) (:/:)  (MyInt  b) = return $ MyInt  (a `quot` b)
+  evalBinop (MyDec  a) (:+:)  (MyDec  b) = return $ MyDec  (a + b)
+  evalBinop (MyDec  a) (:-:)  (MyDec  b) = return $ MyDec  (a - b)
+  evalBinop (MyDec  a) (:*:)  (MyDec  b) = return $ MyDec  (a * b)
+  evalBinop (MyDec  a) (:/:)  (MyDec  b) = return $ MyDec  (a / b)
+  evalBinop (MyStr  a) (:+:)  (MyStr  b) = return $ MyStr  (a ++ b)
+  evalBinop (MyBool a) (:&&:) (MyBool b) = return $ MyBool (a && b)
+  evalBinop (MyBool a) (:||:) (MyBool b) = return $ MyBool (a || b)
+  evalBinop (MyInt  a) (:>:)  (MyInt b)  = return $ MyBool (a > b)
+  evalBinop (MyInt  a) (:<:)  (MyInt b)  = return $ MyBool (a < b)
+  evalBinop (MyInt  a) (:>=:) (MyInt b)  = return $ MyBool (a >= b)
+  evalBinop (MyInt  a) (:<=:) (MyInt b)  = return $ MyBool (a <= b)
+  evalBinop _ _ _                        = errorM "Invalid operation executed."
 
   --Parse an expression
   parseExp :: Parser Exp
-  parseExp = parseDec' +++ parseInt +++ parseString +++ parseBool +++ parseBinop
+  parseExp = parseDec +++ parseInt +++ parseString +++ parseBool +++ parseBinop +++ parseName
 
-  --Parse a binary operation
+  --Parse a BinOp operation
   parseBinop :: Parser Exp
   parseBinop = parsePlus +++ parseMin +++ parseMul +++
                parseDiv  +++ parseAnd +++ parseOr  +++
@@ -90,8 +94,15 @@ module Expressions (evalExp, parseExp, Exp) where
   parseInt = fmap (Lit . MyInt) NumParser.parseInt
 
   --Parse a decimal value
-  parseDec' :: Parser Exp
-  parseDec' = fmap (Lit . MyDec) NumParser.parseDec
+  parseDec :: Parser Exp
+  parseDec = fmap (Lit . MyDec) NumParser.parseDec
+
+  parseName :: Parser Exp
+  parseName = do
+    whitespace
+    name <- identifier
+    whitespace
+    return $ Var name
 
   makeBinop :: String -> Op -> Parser Exp
   makeBinop s op = do
@@ -100,4 +111,4 @@ module Expressions (evalExp, parseExp, Exp) where
     wMatch s
     b <- parseExp
     wToken ')'
-    return $ Binary a op b
+    return $ BinOp a op b

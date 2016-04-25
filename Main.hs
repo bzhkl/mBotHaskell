@@ -1,8 +1,8 @@
 import Statements
-import Expressions
+import Parser
 
 main :: IO ()
 main = do
   file <- readFile "test.js"
-  let stmt = parseStmt file
+  let stmt = parse parseSequence file
   putStr $ show stmt

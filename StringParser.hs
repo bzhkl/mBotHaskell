@@ -1,5 +1,5 @@
 --This module is used for parsing characters and strings.
-module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMatch, identifier, bracket) where
+module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMatch, identifier, wIdentifier, bracket) where
   import Control.Monad
   import Data.Char
   import Parser
@@ -52,6 +52,13 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMa
 
   whitespace :: Parser String
   whitespace = star (spot isSpace)
+
+  wIdentifier :: Parser String
+  wIdentifier = do
+    whitespace
+    x <- identifier
+    whitespace
+    return x
 
   identifier :: Parser String
   identifier = do

@@ -1,4 +1,4 @@
-module SequenceParser (star, plus, sepBy) where
+module SequenceParser (star, plus, sepBy, sepBy1) where
   import Parser
   import Control.Monad
   -- match zero or more occurrences
@@ -11,10 +11,18 @@ module SequenceParser (star, plus, sepBy) where
     xs <- star p
     return (x:xs)
 
-  -- recognises non-empty sequences from parser p, seperated by
+  -- recognises sequences from parser p, seperated by
   -- sequences of parser sep
   sepBy :: Parser a -> Parser b -> Parser [a]
   sepBy p sep = do
     x <- p
     xs <- star $ sep >> p
+    return (x:xs)
+
+  -- recognises non-empty sequences from parser p, seperated by
+  -- sequences of parser sep
+  sepBy1 :: Parser a -> Parser b -> Parser [a]
+  sepBy1 p sep = do
+    x <- p
+    xs <- plus $ sep >> p
     return (x:xs)

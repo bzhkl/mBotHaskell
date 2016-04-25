@@ -1,24 +1,41 @@
-module Statements (parseStmt) where
+module Statements (Stmt, parseSequence) where
   import Parser
   import StringParser
   import SequenceParser
+  import Control.Monad
   import Expressions
 
-  data Stmt = Nop | String := Exp | If Exp Stmt | While Exp Stmt | Block [Stmt] | Print Exp
+  data Stmt = String := Exp | If Exp Stmt | While Exp Stmt | Sequence [Stmt] | Print Exp
      deriving Show
 
+  --Parse a single statement
   parseStmt :: Parser Stmt
-  parseStmt = parseAssign +++ parseIf +++ parseWhile +++ parseBlock +++ parsePrint
+  parseStmt = parseAssign  `mplus` parsePrint `mplus` parseBlock `mplus` parseIf `mplus` parseWhile
 
+  --Parse a sequence of statements, this is the only exported function of this module
+  parseSequence :: Parser Stmt
+  parseSequence = fmap Sequence (star parseStmt)
+
+  --Parse a code block, a block is a nested sequence of statements
+  parseBlock :: Parser Stmt
+  parseBlock =  do
+    wToken '{'
+    stmt <- parseSequence
+    wToken '}'
+    return stmt
+
+  --Parse a variable assignment
   parseAssign :: Parser Stmt
   parseAssign = do
     wMatch "let"
+    whitespace
     name <- identifier
     wToken '='
     ex <- parseExp
-    wToken ';'
+    delim
     return $ name := ex
 
+  --Parse an if statement
   parseIf :: Parser Stmt
   parseIf = do
     wMatch "if"
@@ -26,6 +43,7 @@ module Statements (parseStmt) where
     stmt <- parseBlock
     return $ If ex stmt
 
+  --Parse a while loop
   parseWhile:: Parser Stmt
   parseWhile = do
     wMatch "while"
@@ -33,16 +51,15 @@ module Statements (parseStmt) where
     stmt <- parseBlock
     return $ While ex stmt
 
-  parseBlock :: Parser Stmt
-  parseBlock = do
-    wToken '{'
-    stmts <- star parseStmt
-    wToken '}'
-    return $ Block stmts
-
+  --Parse a print statement
   parsePrint :: Parser Stmt
   parsePrint = do
     wMatch "console.log("
     ex <- parseExp
     wToken ')'
+    delim
     return $ Print ex
+
+  --Parse a statement delimiter, this is a semicolon or a newline.
+  delim :: Parser Char
+  delim = wToken ';' `mplus` wToken '\n'
