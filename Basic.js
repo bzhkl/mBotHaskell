@@ -10,7 +10,7 @@ for(let i = 10; i>5; i--) { console.log("Number: " + i) }
 if(d) {
   console.log("World");
 }
-console.log(a + b * c);
+console.log(((a + b) * c));
 /*
 Console.log("Blabla")
 Console.log("Bla")
