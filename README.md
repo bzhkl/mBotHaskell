@@ -4,5 +4,7 @@ Final project from the course "Functional and Logic Programming Languages" of th
 
 I had to design and implement a basic interpreter for a fictional programming language based on one or more existing languages. The interpreter has to be written in Haskell. I also had to extend this self-written language making it possible to control an educational 'mBot' robot.
 
+My mini-programming language is almost a subset of JavaScript (ES6).
+
 ## Authors
  * Ward Van Assche
