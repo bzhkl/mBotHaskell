@@ -1,17 +1,17 @@
-module Expressions (evalExp, parseExp, Exp) where
+module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) where
   import Prelude hiding (lookup)
+  import qualified Data.Map.Strict as Map
   import Parser
   import qualified NumberParser as NumParser
   import StringParser
   import SequenceParser
   import Interpreter
 
-  type Environment = [(Name,Value)]
+  type Environment = Map.Map String Value
   type Name = String
 
   -- The 'Type' datatype represents a primitive value in our little language.
   data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool
-       deriving (Show)
 
   -- The 'Exp' datatype represents an expression which can be evaluated.
   data Exp = Lit Value  | BinOp Exp Op Exp | Var Name
@@ -26,15 +26,16 @@ module Expressions (evalExp, parseExp, Exp) where
 
   evalExp :: Exp -> Environment -> M Value
   evalExp (Lit t) _               = return t
-  evalExp (BinOp ex1 op ex2) env = do
+  evalExp (BinOp ex1 op ex2) env  = do
     v1 <- evalExp ex1 env
     v2 <- evalExp ex2 env
     evalBinop v1 op v2
   evalExp (Var n) env             = lookup n env
 
-  lookup               :: Name ->Environment -> M Value
-  lookup x []          = errorM ("Unbound variable: " ++ x)
-  lookup x ((y,b):e)   = if x==y then return b else lookup x e
+  lookup               :: Name -> Environment -> M Value
+  lookup x m = case Map.lookup x m of
+    Just v -> return v
+    Nothing -> errorM ("Unbound variable: " ++ x)
 
   evalBinop :: Value -> Op -> Value -> M Value
   evalBinop (MyInt  a) (:+:)  (MyInt  b) = return $ MyInt  (a + b)
@@ -112,3 +113,9 @@ module Expressions (evalExp, parseExp, Exp) where
     b <- parseExp
     wToken ')'
     return $ BinOp a op b
+
+  instance Show Value where
+    show (MyInt i) = show i
+    show (MyBool b) = show b
+    show (MyDec d) = show d
+    show (MyStr s) = s

@@ -1,16 +1,16 @@
-module Statements (Stmt, parseSequence) where
+module Statements (Stmt (..), parseSequence) where
   import Parser
   import StringParser
   import SequenceParser
   import Control.Monad
   import Expressions
 
-  data Stmt = Noop | String := Exp | If Exp Stmt | While Exp Stmt | Sequence [Stmt] | Print Exp
+  data Stmt = Noop | String := Exp | String ::= Exp | If Exp Stmt | While Exp Stmt | Sequence [Stmt] | Block Stmt | Print Exp
      deriving Show
 
   --Parse a single statement
   parseStmt :: Parser Stmt
-  parseStmt = parseAssign `mplus` parsePrint `mplus` parseBlock `mplus` parseIf `mplus` parseWhile `mplus` parseLineComment `mplus` parseBlockComment
+  parseStmt = parseAssign `mplus` parseChange `mplus` parsePrint `mplus` parseBlock `mplus` parseIf `mplus` parseWhile `mplus` parseLineComment `mplus` parseBlockComment
 
   --Parse a sequence of statements, this is the only exported function of this module
   parseSequence :: Parser Stmt
@@ -18,7 +18,7 @@ module Statements (Stmt, parseSequence) where
 
   --Parse a code block, a block is a nested sequence of statements
   parseBlock :: Parser Stmt
-  parseBlock = bracket (wToken '{') parseSequence (wToken '}')
+  parseBlock = fmap Block (bracket (wToken '{') parseSequence (wToken '}'))
 
   --Parse a variable assignment
   parseAssign :: Parser Stmt
@@ -30,6 +30,14 @@ module Statements (Stmt, parseSequence) where
     ex <- parseExp
     delim
     return $ name := ex
+
+  parseChange :: Parser Stmt
+  parseChange = do
+    name <- wIdentifier
+    wToken '='
+    ex <- parseExp
+    delim
+    return $ name ::= ex
 
   --Parse an if statement
   parseIf :: Parser Stmt
@@ -62,7 +70,7 @@ module Statements (Stmt, parseSequence) where
     parseLine
     return Noop
 
-  --Parse a block line comment
+  --Parse a block comment
   parseBlockComment :: Parser Stmt
   parseBlockComment = do
     wMatch "/*"

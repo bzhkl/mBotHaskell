@@ -1,4 +1,4 @@
-module Interpreter (M, errorM) where
+module Interpreter (M (..), errorM) where
   import Control.Monad
 
   data M a = Success a | Error String
