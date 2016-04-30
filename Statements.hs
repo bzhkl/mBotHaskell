@@ -5,12 +5,15 @@ module Statements (Stmt (..), parseSequence) where
   import Control.Monad
   import Expressions
 
-  data Stmt = Noop | String := Exp | String ::= Exp | If Exp Stmt | While Exp Stmt | Sequence [Stmt] | Block Stmt | Print Exp
+  data Stmt = Noop | String := Exp | String ::= Exp | If Exp Stmt | While Exp Stmt |
+              Sequence [Stmt] | Block Stmt | Print Exp | For Stmt Exp Stmt Stmt
      deriving Show
 
   --Parse a single statement
   parseStmt :: Parser Stmt
-  parseStmt = parseAssign `mplus` parseChange `mplus` parsePrint `mplus` parseBlock `mplus` parseIf `mplus` parseWhile `mplus` parseLineComment `mplus` parseBlockComment
+  parseStmt = parseAssign       `mplus` parseChange       `mplus` parsePrint `mplus`
+              parseBlock        `mplus` parseIf           `mplus` parseWhile `mplus`
+              parseLineComment  `mplus` parseBlockComment `mplus` parseFor
 
   --Parse a sequence of statements, this is the only exported function of this module
   parseSequence :: Parser Stmt
@@ -20,24 +23,35 @@ module Statements (Stmt (..), parseSequence) where
   parseBlock :: Parser Stmt
   parseBlock = fmap Block (bracket (wToken '{') parseSequence (wToken '}'))
 
-  --Parse a variable assignment
-  parseAssign :: Parser Stmt
-  parseAssign = do
+  --Parse a variable assignment without semicolon (used in for loops)
+  parseAssign' :: Parser Stmt
+  parseAssign' = do
     wMatch "let"
     whitespace
     name <- identifier
     wToken '='
     ex <- parseExp
-    delim
     return $ name := ex
 
-  parseChange :: Parser Stmt
-  parseChange = do
+  --Parse a variable assignment
+  parseAssign :: Parser Stmt
+  parseAssign = do
+    stmt <- parseAssign'
+    delim
+    return stmt
+
+  parseChange' :: Parser Stmt
+  parseChange' = do
     name <- wIdentifier
     wToken '='
     ex <- parseExp
-    delim
     return $ name ::= ex
+
+  parseChange :: Parser Stmt
+  parseChange = do
+    stmt <- parseChange'
+    delim
+    return stmt
 
   --Parse an if statement
   parseIf :: Parser Stmt
@@ -47,8 +61,22 @@ module Statements (Stmt (..), parseSequence) where
     stmt <- parseBlock
     return $ If ex stmt
 
+  parseFor :: Parser Stmt
+  parseFor = do
+    wMatch "for"
+    wToken '('
+    assign <- parseAssign'
+    wToken ';'
+    predicate <- parseExp
+    wToken ';'
+    change <- parseChange'
+    wToken ')'
+    stmt <- parseBlock
+    return $ For assign predicate change stmt
+
+
   --Parse a while loop
-  parseWhile:: Parser Stmt
+  parseWhile :: Parser Stmt
   parseWhile = do
     wMatch "while"
     ex <- bracket (wToken '(') parseExp (wToken ')')

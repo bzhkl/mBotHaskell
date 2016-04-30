@@ -45,11 +45,19 @@ module Executor(execute) where
       Error s  -> lift $ putStrLn s
       _        -> lift $ putStrLn "Invalid type in if-statement"
 
+  --Execute a for loop
+  execute (For assign predicate change stmt) = do
+    execute assign
+    execute $ While predicate (Sequence [stmt, change])
+
   --Execute a block
   execute (Block stmt) = do
-    env <- get
+    initEnv <- get
     execute stmt
-    put env
+    endEnv <- get
+    let changed = Map.intersection endEnv initEnv
+    let updated = Map.union changed initEnv
+    put updated
 
   --Execute a sequence
   execute (Sequence (st:sts)) = execute st >> execute (Sequence sts)

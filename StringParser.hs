@@ -51,7 +51,7 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMa
     return m
 
   whitespace :: Parser String
-  whitespace = star (spot isSpace)
+  whitespace = star $ spot isSpace
 
   wIdentifier :: Parser String
   wIdentifier = do

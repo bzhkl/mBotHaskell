@@ -1,4 +1,4 @@
-module Parser (Parser (..), apply, parse, (+++)) where
+module Parser (Parser (..), apply, parse) where
   import Control.Monad
   import Control.Applicative
 
@@ -11,7 +11,7 @@ module Parser (Parser (..), apply, parse, (+++)) where
   -- Return parsed value, assuming at least one successful parse
   parse :: Parser a -> String -> a
   parse m s = one[ x | (x,t) <- apply m s, t == "" ]
-      where one [] = error "no parse"
+      where one [] = error "Syntax error"
             one (x:_) = x
 
   instance Functor Parser where
@@ -32,10 +32,3 @@ module Parser (Parser (..), apply, parse, (+++)) where
   instance MonadPlus Parser where
     mzero = Parser (const [])
     mplus m n = Parser (\s -> apply m s ++ apply n s)
-
-  --Alternative for `mplus` when we are only interested in the first result (deterministic choice)
-  --(can be used for parsing whitespace).
-  (+++) :: Parser a -> Parser a -> Parser a
-  p +++ q = Parser (\cs -> case apply (p `mplus` q) cs of
-                             []      -> []
-                             (x:_)  -> [x])

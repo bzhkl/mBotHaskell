@@ -6,6 +6,7 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   import StringParser
   import SequenceParser
   import Interpreter
+  import Control.Monad
 
   type Environment = Map.Map String Value
   type Name = String
@@ -29,7 +30,7 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   evalExp (BinOp ex1 op ex2) env  = do
     v1 <- evalExp ex1 env
     v2 <- evalExp ex2 env
-    evalBinop v1 op v2
+    evalBinOp v1 op v2
   evalExp (Var n) env             = lookup n env
 
   lookup               :: Name -> Environment -> M Value
@@ -37,33 +38,49 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
     Just v -> return v
     Nothing -> errorM ("Unbound variable: " ++ x)
 
-  evalBinop :: Value -> Op -> Value -> M Value
-  evalBinop (MyInt  a) (:+:)  (MyInt  b) = return $ MyInt  (a + b)
-  evalBinop (MyInt  a) (:-:)  (MyInt  b) = return $ MyInt  (a - b)
-  evalBinop (MyInt  a) (:*:)  (MyInt  b) = return $ MyInt  (a * b)
-  evalBinop (MyInt  a) (:/:)  (MyInt  b) = return $ MyInt  (a `quot` b)
-  evalBinop (MyDec  a) (:+:)  (MyDec  b) = return $ MyDec  (a + b)
-  evalBinop (MyDec  a) (:-:)  (MyDec  b) = return $ MyDec  (a - b)
-  evalBinop (MyDec  a) (:*:)  (MyDec  b) = return $ MyDec  (a * b)
-  evalBinop (MyDec  a) (:/:)  (MyDec  b) = return $ MyDec  (a / b)
-  evalBinop (MyStr  a) (:+:)  (MyStr  b) = return $ MyStr  (a ++ b)
-  evalBinop (MyBool a) (:&&:) (MyBool b) = return $ MyBool (a && b)
-  evalBinop (MyBool a) (:||:) (MyBool b) = return $ MyBool (a || b)
-  evalBinop (MyInt  a) (:>:)  (MyInt b)  = return $ MyBool (a > b)
-  evalBinop (MyInt  a) (:<:)  (MyInt b)  = return $ MyBool (a < b)
-  evalBinop (MyInt  a) (:>=:) (MyInt b)  = return $ MyBool (a >= b)
-  evalBinop (MyInt  a) (:<=:) (MyInt b)  = return $ MyBool (a <= b)
-  evalBinop _ _ _                        = errorM "Invalid operation executed."
+  evalBinOp :: Value -> Op -> Value -> M Value
+  evalBinOp  (MyInt a)   op (MyInt b)   = return $ MyInt  (evalIntOp a op b)
+  evalBinOp  (MyDec a)   op (MyDec b)   = return $ MyDec  (evalDecOp a op b)
+  evalBinOp  (MyStr a)   op (MyStr b)   = return $ MyStr  (evalStringOp a op b)
+  evalBinOp  (MyBool a)  op (MyBool b)  = return $ MyBool (evalBoolOp a op b)
+  evalBinOp  a           op b           = errorM ("Unable to perform operation "
+                                                   ++ show op ++ " on arguments "
+                                                   ++ show a ++ " and "
+                                                   ++ show b ++ ".")
+
+  evalIntOp :: Int -> Op -> Int -> Int
+  evalIntOp a (:+:) b = a + b
+  evalIntOp a (:-:) b = a + b
+  evalIntOp a (:*:) b = a + b
+  evalIntOp a (:*:) b = a `quot` b
+
+  evalDecOp :: Double -> Op -> Double -> Double
+  evalDecOp a (:+:) b = a + b
+  evalDecOp a (:-:) b = a + b
+  evalDecOp a (:*:) b = a + b
+  evalDecOp a (:*:) b = a / b
+
+  evalBoolOp :: Bool -> Op -> Bool -> Bool
+  evalBoolOp a (:&&:) b = a && b
+  evalBoolOp a (:||:) b = a || b
+  evalBoolOp a (:>:)  b = a >  b
+  evalBoolOp a (:<:)  b = a <  b
+  evalBoolOp a (:>=:) b = a >= b
+  evalBoolOp a (:<=:) b = a <= b
+
+  evalStringOp :: String -> Op -> String -> String
+  evalStringOp a (:+:) b = a ++ b
 
   --Parse an expression
   parseExp :: Parser Exp
-  parseExp = parseDec +++ parseInt +++ parseString +++ parseBool +++ parseBinop +++ parseName
+  parseExp = parseDec  `mplus` parseInt   `mplus` parseString `mplus`
+             parseBool `mplus` parseBinop `mplus` parseName
 
   --Parse a BinOp operation
   parseBinop :: Parser Exp
-  parseBinop = parsePlus +++ parseMin +++ parseMul +++
-               parseDiv  +++ parseAnd +++ parseOr  +++
-               parseGt   +++ parseLt  +++ parseGte +++
+  parseBinop = parsePlus `mplus` parseMin `mplus` parseMul `mplus`
+               parseDiv  `mplus` parseAnd `mplus` parseOr  `mplus`
+               parseGt   `mplus` parseLt  `mplus` parseGte `mplus`
                parseLte
                where parsePlus  = makeBinop "+"   (:+:)
                      parseMin   = makeBinop "-"   (:-:)
@@ -79,7 +96,7 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   --Parse a boolean value
   parseBool :: Parser Exp
   parseBool = do
-    s <- wMatch "true" +++ wMatch "false"
+    s <- wMatch "true" `mplus` wMatch "false"
     return . Lit . MyBool $ s == "true"
 
   --Parse a string

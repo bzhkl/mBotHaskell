@@ -1,7 +1,7 @@
-let a = "Hallo wereld";
-console.log(a);
-a = "Loser!!!";
-console.log(a);
-b = "Fucker!!!!";
-console.log(b);
-console.log(c);
+console.log("Start the application");
+let i = 10;
+//Loop until i is smaller than zero
+for(let i = 0; (i<10); i=(i+1)) {
+  console.log(i);
+}
+console.log("End of the application");
