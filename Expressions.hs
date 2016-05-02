@@ -39,37 +39,53 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
     Nothing -> errorM ("Unbound variable: " ++ x)
 
   evalBinOp :: Value -> Op -> Value -> M Value
-  evalBinOp  (MyInt a)   op (MyInt b)   = return $ MyInt  (evalIntOp a op b)
-  evalBinOp  (MyDec a)   op (MyDec b)   = return $ MyDec  (evalDecOp a op b)
-  evalBinOp  (MyStr a)   op (MyStr b)   = return $ MyStr  (evalStringOp a op b)
-  evalBinOp  (MyBool a)  op (MyBool b)  = return $ MyBool (evalBoolOp a op b)
-  evalBinOp  a           op b           = errorM ("Unable to perform operation "
+  evalBinOp  (MyInt a)   op   (MyInt b)   = evalIntOp a op b
+  evalBinOp  (MyDec a)   op   (MyDec b)   = evalDecOp a op b
+  evalBinOp  (MyStr a)   op   (MyStr b)   = evalStringOp a op b
+  evalBinOp  (MyBool a)  op   (MyBool b)  = evalBoolOp a op b
+  evalBinOp  (MyStr a)   op   b           = evalStringOp a op (show b)
+  evalBinOp  a           op   (MyStr b)   = evalStringOp (show a) op b
+  evalBinOp  a           op   b           = errorM ("Unable to perform operation "
                                                    ++ show op ++ " on arguments "
                                                    ++ show a ++ " and "
                                                    ++ show b ++ ".")
 
-  evalIntOp :: Int -> Op -> Int -> Int
-  evalIntOp a (:+:) b = a + b
-  evalIntOp a (:-:) b = a + b
-  evalIntOp a (:*:) b = a + b
-  evalIntOp a (:*:) b = a `quot` b
+  evalIntOp :: Int -> Op -> Int -> M Value
+  evalIntOp a (:+:) b = return $ MyInt (a + b)
+  evalIntOp a (:-:) b = return $ MyInt (a - b)
+  evalIntOp a (:*:) b = return $ MyInt (a * b)
+  evalIntOp a (:/:) b = return $ MyInt (a `quot` b)
+  evalIntOp a (:>:)  b = return $ MyBool (a >  b)
+  evalIntOp a (:<:)  b = return $ MyBool (a <  b)
+  evalIntOp a (:>=:) b = return $ MyBool (a >= b)
+  evalIntOp a (:<=:) b = return $ MyBool (a <= b)
+  evalIntOp a op     b = errorM $ "Operation " ++ show op ++
+                                  " is not supported on " ++ show a ++
+                                  " and " ++ show b ++
+                                  "."
 
-  evalDecOp :: Double -> Op -> Double -> Double
-  evalDecOp a (:+:) b = a + b
-  evalDecOp a (:-:) b = a + b
-  evalDecOp a (:*:) b = a + b
-  evalDecOp a (:*:) b = a / b
+  evalDecOp :: Double -> Op -> Double -> M Value
+  evalDecOp a (:+:) b = return $ MyDec (a + b)
+  evalDecOp a (:-:) b = return $ MyDec (a - b)
+  evalDecOp a (:*:) b = return $ MyDec (a * b)
+  evalDecOp a (:/:) b = return $ MyDec (a / b)
+  evalDecOp a (:>:)  b = return $ MyBool (a >  b)
+  evalDecOp a (:<:)  b = return $ MyBool (a <  b)
+  evalDecOp a (:>=:) b = return $ MyBool (a >= b)
+  evalDecOp a (:<=:) b = return $ MyBool (a <= b)
+  evalDecOp a op     b = errorM $ "Operation " ++ show op ++
+                                  " is not supported on " ++ show a ++
+                                  " and " ++ show b ++
+                                  "."
 
-  evalBoolOp :: Bool -> Op -> Bool -> Bool
-  evalBoolOp a (:&&:) b = a && b
-  evalBoolOp a (:||:) b = a || b
-  evalBoolOp a (:>:)  b = a >  b
-  evalBoolOp a (:<:)  b = a <  b
-  evalBoolOp a (:>=:) b = a >= b
-  evalBoolOp a (:<=:) b = a <= b
+  evalBoolOp :: Bool -> Op -> Bool -> M Value
+  evalBoolOp a (:&&:) b = return $ MyBool (a && b)
+  evalBoolOp a (:||:) b = return $ MyBool (a || b)
+  evalBoolOp _ _ _      = errorM "Unsupported operation on boolean values."
 
-  evalStringOp :: String -> Op -> String -> String
-  evalStringOp a (:+:) b = a ++ b
+  evalStringOp :: String -> Op -> String -> M Value
+  evalStringOp a (:+:) b = return $ MyStr (a ++ b)
+  evalStringOp _ _ _     = errorM "Unsupported operation on string values."
 
   --Parse an expression
   parseExp :: Parser Exp
@@ -116,11 +132,7 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   parseDec = fmap (Lit . MyDec) NumParser.parseDec
 
   parseName :: Parser Exp
-  parseName = do
-    whitespace
-    name <- identifier
-    whitespace
-    return $ Var name
+  parseName = fmap Var wIdentifier
 
   makeBinop :: String -> Op -> Parser Exp
   makeBinop s op = do

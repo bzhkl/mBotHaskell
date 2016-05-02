@@ -43,7 +43,8 @@ module Executor(execute) where
       Success (MyBool True) -> execute stmt >> execute (While ex stmt)
       Success (MyBool False) -> next
       Error s  -> lift $ putStrLn s
-      _        -> lift $ putStrLn "Invalid type in if-statement"
+      Success a        -> lift $ putStrLn ("Invalid type in while-statement: " ++ show a)
+      _ -> lift $ putStrLn ("problem ")
 
   --Execute a for loop
   execute (For assign predicate change stmt) = do
