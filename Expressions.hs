@@ -11,11 +11,11 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   type Environment = Map.Map String Value
   type Name = String
 
-  -- The 'Type' datatype represents a primitive value in our little language.
+  -- The 'Value' datatype represents a primitive value in our cute little language.
   data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool
 
   -- The 'Exp' datatype represents an expression which can be evaluated.
-  data Exp = Lit Value  | BinOp Exp Op Exp | Var Name
+  data Exp = Lit Value  | BinOp Exp Op Exp | UnOp Op Exp | Var Name
        deriving (Show)
 
   -- The 'Op' datatype represents a unary or BinOp operation
@@ -31,12 +31,22 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
     v1 <- evalExp ex1 env
     v2 <- evalExp ex2 env
     evalBinOp v1 op v2
+  evalExp (UnOp op ex) env = evalExp ex env >>= \v -> evalUnOp op v
   evalExp (Var n) env             = lookup n env
 
   lookup               :: Name -> Environment -> M Value
   lookup x m = case Map.lookup x m of
     Just v -> return v
     Nothing -> errorM ("Unbound variable: " ++ x)
+
+  evalUnOp :: Op -> Value -> M Value
+  evalUnOp (:+:) (MyInt a) = return $ MyInt a
+  evalUnOp (:-:) (MyInt a) = return $ MyInt (-a)
+  evalUnOp (:+:) (MyDec a) = return $ MyDec a
+  evalUnOp (:-:) (MyDec a) = return $ MyDec (-a)
+  evalUnOp op a            = errorM $ "Unary operation " ++ show op ++
+                                    " is not supported on " ++ show a ++
+                                    "."
 
   evalBinOp :: Value -> Op -> Value -> M Value
   evalBinOp  (MyInt a)   op   (MyInt b)   = evalIntOp a op b
@@ -61,8 +71,7 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   evalIntOp a (:<=:) b = return $ MyBool (a <= b)
   evalIntOp a op     b = errorM $ "Operation " ++ show op ++
                                   " is not supported on " ++ show a ++
-                                  " and " ++ show b ++
-                                  "."
+                                  " and " ++ show b ++ "."
 
   evalDecOp :: Double -> Op -> Double -> M Value
   evalDecOp a (:+:) b = return $ MyDec (a + b)
@@ -75,8 +84,7 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   evalDecOp a (:<=:) b = return $ MyBool (a <= b)
   evalDecOp a op     b = errorM $ "Operation " ++ show op ++
                                   " is not supported on " ++ show a ++
-                                  " and " ++ show b ++
-                                  "."
+                                  " and " ++ show b ++ "."
 
   evalBoolOp :: Bool -> Op -> Bool -> M Value
   evalBoolOp a (:&&:) b = return $ MyBool (a && b)
@@ -90,24 +98,30 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   --Parse an expression
   parseExp :: Parser Exp
   parseExp = parseDec  `mplus` parseInt   `mplus` parseString `mplus`
-             parseBool `mplus` parseBinop `mplus` parseName
+             parseBool `mplus` parseBinOp `mplus` parseName `mplus`
+             parseUnOp
+
+  parseUnOp :: Parser Exp
+  parseUnOp = parsePlus `mplus` parseMin
+              where parsePlus = makeUnOp "+" (:+:)
+                    parseMin  = makeUnOp "-" (:-:)
 
   --Parse a BinOp operation
-  parseBinop :: Parser Exp
-  parseBinop = parsePlus `mplus` parseMin `mplus` parseMul `mplus`
+  parseBinOp :: Parser Exp
+  parseBinOp = parsePlus `mplus` parseMin `mplus` parseMul `mplus`
                parseDiv  `mplus` parseAnd `mplus` parseOr  `mplus`
                parseGt   `mplus` parseLt  `mplus` parseGte `mplus`
                parseLte
-               where parsePlus  = makeBinop "+"   (:+:)
-                     parseMin   = makeBinop "-"   (:-:)
-                     parseMul   = makeBinop "*"   (:*:)
-                     parseDiv   = makeBinop "/"   (:/:)
-                     parseAnd   = makeBinop "&&"  (:&&:)
-                     parseOr    = makeBinop "||"  (:||:)
-                     parseGt    = makeBinop ">"   (:>:)
-                     parseLt    = makeBinop "<"   (:<:)
-                     parseGte   = makeBinop ">="  (:>=:)
-                     parseLte   = makeBinop "<="  (:<=:)
+               where parsePlus  = makeBinOp "+"   (:+:)
+                     parseMin   = makeBinOp "-"   (:-:)
+                     parseMul   = makeBinOp "*"   (:*:)
+                     parseDiv   = makeBinOp "/"   (:/:)
+                     parseAnd   = makeBinOp "&&"  (:&&:)
+                     parseOr    = makeBinOp "||"  (:||:)
+                     parseGt    = makeBinOp ">"   (:>:)
+                     parseLt    = makeBinOp "<"   (:<:)
+                     parseGte   = makeBinOp ">="  (:>=:)
+                     parseLte   = makeBinOp "<="  (:<=:)
 
   --Parse a boolean value
   parseBool :: Parser Exp
@@ -134,8 +148,17 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   parseName :: Parser Exp
   parseName = fmap Var wIdentifier
 
-  makeBinop :: String -> Op -> Parser Exp
-  makeBinop s op = do
+  makeUnOp :: String -> Op -> Parser Exp
+  makeUnOp s op = do
+    wToken '('
+    wMatch s
+    b <- parseExp
+    wToken ')'
+    return $ UnOp op b
+
+
+  makeBinOp :: String -> Op -> Parser Exp
+  makeBinOp s op = do
     wToken '('
     a <- parseExp
     wMatch s
