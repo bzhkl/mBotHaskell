@@ -5,7 +5,7 @@ module Statements (Stmt (..), parseProgram) where
   import Control.Monad
   import Expressions
 
-  data Stmt = Noop | String := Exp | String ::= Exp | If Exp Stmt | While Exp Stmt |
+  data Stmt = Noop | Name := Exp | Name ::= Exp | If Exp Stmt | While Exp Stmt |
               Sequence [Stmt] | Block Stmt | Print Exp | For Stmt Exp Stmt Stmt
      deriving Show
 
@@ -15,8 +15,8 @@ module Statements (Stmt (..), parseProgram) where
 
   --Parse a single statement
   parseStmt :: Parser Stmt
-  parseStmt = parseBlock       `mplus` parseIf           `mplus` parseWhile `mplus`
-              parseLineComment `mplus` parseBlockComment `mplus` parseFor   `mplus`
+  parseStmt = parseBlock       `mplus` parseIf           `mplus` parseWhile    `mplus`
+              parseLineComment `mplus` parseBlockComment `mplus` parseFor      `mplus`
               parseDelimited
 
   parseDelimited :: Parser Stmt
