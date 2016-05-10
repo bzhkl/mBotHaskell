@@ -22,7 +22,7 @@ module Executor(execute) where
     env <- get
     let value = lookup name env >> evalExp ex env
     case value of
-      Error s -> lift $ putStrLn s
+      Error s   -> lift $ putStrLn s
       Success a -> put $ Map.insert name a env
 
   --Execute an if-statement
@@ -30,21 +30,20 @@ module Executor(execute) where
     env <- get
     let predicate = evalExp ex env
     case predicate of
-      Success (MyBool True) -> execute stmt
+      Success (MyBool True)  -> execute stmt
       Success (MyBool False) -> next
-      Error s  -> lift $ putStrLn s
-      _        -> lift $ putStrLn "Invalid type in if-statement"
+      Error s                -> lift $ putStrLn s
+      _                      -> lift $ putStrLn "Invalid type in if-statement"
 
   --Execute a while loop
   execute (While ex stmt) = do
     env <- get
     let predicate = evalExp ex env
     case predicate of
-      Success (MyBool True) -> execute stmt >> execute (While ex stmt)
-      Success (MyBool False) -> next
-      Error s  -> lift $ putStrLn s
-      Success a        -> lift $ putStrLn ("Invalid type in while-statement: " ++ show a)
-      _ -> lift $ putStrLn ("problem ")
+      Success (MyBool True)   -> execute stmt >> execute (While ex stmt)
+      Success (MyBool False)  -> next
+      Error s                 -> lift $ putStrLn s
+      Success a               -> lift $ putStrLn ("Invalid type in while-statement: " ++ show a)
 
   --Execute a for loop
   execute (For assign predicate change stmt) = do

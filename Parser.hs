@@ -11,8 +11,9 @@ module Parser (Parser (..), apply, parse) where
   -- Return parsed value, assuming at least one successful parse
   parse :: Parser a -> String -> a
   parse m s = one[ x | (x,t) <- apply m s, t == "" ]
-      where one [] = error "Syntax error"
-            one (x:_) = x
+      where one []  = error "Syntax error"
+            one [x] = x
+            one _   = error "Ambigious parse"
 
   instance Functor Parser where
     fmap = liftM

@@ -1,4 +1,4 @@
-module Statements (Stmt (..), parseSequence) where
+module Statements (Stmt (..), parseProgram) where
   import Parser
   import StringParser
   import SequenceParser
@@ -9,11 +9,21 @@ module Statements (Stmt (..), parseSequence) where
               Sequence [Stmt] | Block Stmt | Print Exp | For Stmt Exp Stmt Stmt
      deriving Show
 
+  --Parse an application
+  parseProgram :: Parser Stmt
+  parseProgram = whitespace >> parseSequence
+
   --Parse a single statement
   parseStmt :: Parser Stmt
-  parseStmt = parseAssign       `mplus` parseChange       `mplus` parsePrint `mplus`
-              parseBlock        `mplus` parseIf           `mplus` parseWhile `mplus`
-              parseLineComment  `mplus` parseBlockComment `mplus` parseFor
+  parseStmt = parseBlock       `mplus` parseIf           `mplus` parseWhile `mplus`
+              parseLineComment `mplus` parseBlockComment `mplus` parseFor   `mplus`
+              parseDelimited
+
+  parseDelimited :: Parser Stmt
+  parseDelimited = let stmt = parseAssign `mplus`
+                              parseChange `mplus`
+                              parsePrint
+                   in stmt >>= \s -> delim >> return s
 
   --Parse a sequence of statements, this is the only exported function of this module
   parseSequence :: Parser Stmt
@@ -23,88 +33,59 @@ module Statements (Stmt (..), parseSequence) where
   parseBlock :: Parser Stmt
   parseBlock = fmap Block (bracket (wToken '{') parseSequence (wToken '}'))
 
-  --Parse a variable assignment without semicolon (used in for loops)
-  parseAssign' :: Parser Stmt
-  parseAssign' = do
-    wMatch "let"
-    whitespace
-    name <- identifier
-    wToken '='
-    ex <- parseExp
-    return $ name := ex
-
   --Parse a variable assignment
   parseAssign :: Parser Stmt
-  parseAssign = do
-    stmt <- parseAssign'
-    delim
-    return stmt
+  parseAssign = wMatch "let" >> fmap (uncurry (:=)) assignHelper
 
-  parseChange' :: Parser Stmt
-  parseChange' = do
-    name <- wIdentifier
-    wToken '='
-    ex <- parseExp
-    return $ name ::= ex
-
+  --Parse a variable change
   parseChange :: Parser Stmt
-  parseChange = do
-    stmt <- parseChange'
-    delim
-    return stmt
+  parseChange = fmap (uncurry (::=)) assignHelper
+
+  --Helper function used for variable assignment and variable change
+  assignHelper :: Parser (String, Exp)
+  assignHelper = do
+    name <- wIdentifier
+    _ <- wToken '='
+    ex <- parseExp
+    return (name, ex)
 
   --Parse an if statement
   parseIf :: Parser Stmt
-  parseIf = do
-    wMatch "if"
-    ex <- bracket (wToken '(') parseExp (wToken ')')
+  parseIf = wMatch "if" >> do
+    ex <- parseExpBracket
     stmt <- parseBlock
     return $ If ex stmt
 
+  --Parse a for loop
   parseFor :: Parser Stmt
-  parseFor = do
-    wMatch "for"
-    wToken '('
-    assign <- parseAssign'
-    wToken ';'
-    predicate <- parseExp
-    wToken ';'
-    change <- parseChange'
-    wToken ')'
+  parseFor = wMatch "for" >> do
+    (assign, predicate, change) <- roundBracket (do
+        a <- parseAssign
+        p <- bracket delim parseExp delim
+        c <- parseChange
+        return (a, p, c))
     stmt <- parseBlock
     return $ For assign predicate change stmt
 
-
   --Parse a while loop
   parseWhile :: Parser Stmt
-  parseWhile = do
-    wMatch "while"
-    ex <- bracket (wToken '(') parseExp (wToken ')')
+  parseWhile = wMatch "while" >> do
+    ex <- parseExpBracket
     stmt <- parseBlock
     return $ While ex stmt
 
   --Parse a print statement
   parsePrint :: Parser Stmt
-  parsePrint = do
-    wMatch "console.log"
-    ex <- bracket (wToken '(') parseExp (wToken ')')
-    delim
-    return $ Print ex
+  parsePrint = wMatch "console.log" >> fmap Print parseExpBracket
 
   --Parse a single line comment
   parseLineComment :: Parser Stmt
-  parseLineComment = do
-    wMatch "//"
-    parseLine
-    return Noop
+  parseLineComment = match "//" >> parseLine >> return Noop
 
   --Parse a block comment
   parseBlockComment :: Parser Stmt
-  parseBlockComment = do
-    wMatch "/*"
-    eatUntil "*/"
-    return Noop
+  parseBlockComment = match "/*" >> eatUntil "*/" >> return Noop
 
-  --Parse a statement delimiter, this is a semicolon or a newline.
+  --Parse a semicolon followed by some whitespace
   delim :: Parser Char
-  delim = wToken ';'
+  delim = parseWhitespace (token ';')

@@ -1,4 +1,4 @@
-module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) where
+module Expressions (Exp, Environment, Value (..), evalExp, parseExp, parseExpBracket, lookup) where
   import Prelude hiding (lookup)
   import qualified Data.Map.Strict as Map
   import Parser
@@ -12,10 +12,10 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   type Name = String
 
   -- The 'Value' datatype represents a primitive value in our cute little language.
-  data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool
+  data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool | Fun (Value -> M Value)
 
   -- The 'Exp' datatype represents an expression which can be evaluated.
-  data Exp = Lit Value  | BinOp Exp Op Exp | UnOp Op Exp | Var Name
+  data Exp = Lit Value  | BinOp Exp Op Exp | UnOp Op Exp | Var Name | Lam Name Exp | App Exp Exp
        deriving (Show)
 
   -- The 'Op' datatype represents a unary or BinOp operation
@@ -31,8 +31,14 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
     v1 <- evalExp ex1 env
     v2 <- evalExp ex2 env
     evalBinOp v1 op v2
-  evalExp (UnOp op ex) env = evalExp ex env >>= \v -> evalUnOp op v
+  evalExp (UnOp op ex) env        = evalExp ex env >>= \v -> evalUnOp op v
   evalExp (Var n) env             = lookup n env
+  evalExp (Lam n v) env           = return $ Fun (\x -> evalExp v (Map.insert n x env) )
+  evalExp (App ex1 ex2) env       = do
+    lam <- evalExp ex1 env
+    arg <- evalExp ex2 env
+    evalFun lam arg
+
 
   lookup               :: Name -> Environment -> M Value
   lookup x m = case Map.lookup x m of
@@ -47,6 +53,11 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   evalUnOp op a            = errorM $ "Unary operation " ++ show op ++
                                     " is not supported on " ++ show a ++
                                     "."
+
+  evalFun :: Value -> Value -> M Value
+  evalFun (Fun k) a = k a
+  evalFun a b = errorM  $ "Unable to apply " ++ show a ++
+                       " with argument" ++ show b ++ "."
 
   evalBinOp :: Value -> Op -> Value -> M Value
   evalBinOp  (MyInt a)   op   (MyInt b)   = evalIntOp a op b
@@ -99,7 +110,10 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   parseExp :: Parser Exp
   parseExp = parseDec  `mplus` parseInt   `mplus` parseString `mplus`
              parseBool `mplus` parseBinOp `mplus` parseName `mplus`
-             parseUnOp
+             parseUnOp `mplus` parseLam   `mplus` parseApp
+
+  parseExpBracket :: Parser Exp
+  parseExpBracket = roundBracket parseExp
 
   parseUnOp :: Parser Exp
   parseUnOp = parsePlus `mplus` parseMin
@@ -131,11 +145,9 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
 
   --Parse a string
   parseString :: Parser Exp
-  parseString = do
-    token '"'
+  parseString = bracket' (token '"') (wToken '"') (do
     str <- star $ notToken '"'
-    token '"'
-    return . Lit . MyStr $ str
+    return . Lit . MyStr $ str)
 
   --Parse an int value
   parseInt :: Parser Exp
@@ -145,25 +157,35 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
   parseDec :: Parser Exp
   parseDec = fmap (Lit . MyDec) NumParser.parseDec
 
+  --Parse a variable name
   parseName :: Parser Exp
   parseName = fmap Var wIdentifier
 
+  --Parse a lambda expression
+  parseLam :: Parser Exp
+  parseLam = roundBracket $ do
+    name <- wIdentifier
+    _ <- wMatch "=>"
+    ex <- parseExp
+    return $ Lam name ex
+
+  --Parse a lambda application
+  parseApp :: Parser Exp
+  parseApp = roundBracket $ do
+    lam <- parseExp
+    arg <- roundBracket parseExp
+    return $ App lam arg
+
+  --Create a parser for a unary operation
   makeUnOp :: String -> Op -> Parser Exp
-  makeUnOp s op = do
-    wToken '('
-    wMatch s
-    b <- parseExp
-    wToken ')'
-    return $ UnOp op b
+  makeUnOp s op = fmap (UnOp op) (roundBracket $ wMatch s >> parseExp)
 
-
+  --Create a parser for a binary operation
   makeBinOp :: String -> Op -> Parser Exp
-  makeBinOp s op = do
-    wToken '('
+  makeBinOp s op = roundBracket $ do
     a <- parseExp
-    wMatch s
+    _ <- wMatch s
     b <- parseExp
-    wToken ')'
     return $ BinOp a op b
 
   instance Show Value where
@@ -171,3 +193,4 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, lookup) whe
     show (MyBool b) = show b
     show (MyDec d) = show d
     show (MyStr s) = s
+    show (Fun _) = "(Function)"

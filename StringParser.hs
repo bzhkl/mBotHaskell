@@ -1,5 +1,7 @@
 --This module is used for parsing characters and strings.
-module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMatch, identifier, wIdentifier, bracket, eatUntil, parseLine) where
+module StringParser (char, spot, token, notToken, wToken, match, whitespace,
+                     wMatch, identifier, wIdentifier, bracket, bracket',
+                     eatUntil, parseLine, roundBracket, parseWhitespace) where
   import Control.Monad
   import Data.Char
   import Parser
@@ -30,48 +32,57 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace, wMa
   bracket :: Parser a -> Parser b -> Parser c -> Parser b
   bracket o p c = o >> p >>= \x -> c >> return x
 
-  --Parse a token surounded by optional whitespace
+  -- Match something between brackets, last parser's value is returned
+  bracket' :: Parser a -> Parser b -> Parser c -> Parser c
+  bracket' o c p = bracket o p c
+
+  -- Match something between round brackets
+  roundBracket :: Parser a -> Parser a
+  roundBracket p = bracket (wToken '(') p (wToken ')')
+
+  --Parse as much whitespace as possible
+  whitespace :: Parser String
+  whitespace = star $ spot isSpace
+
+  --Change a parser so it parses optional whitespace to the right
+  parseWhitespace :: Parser a -> Parser a
+  parseWhitespace p = do
+    m <- p
+    _ <- whitespace
+    return m
+
+  --Parse a token with optional whitespace to the right
   wToken :: Char -> Parser Char
-  wToken t = do
-    whitespace
-    c <- token t
-    whitespace
-    return c
+  wToken t = parseWhitespace (token t)
 
   -- match a given string
   match :: String -> Parser String
   match = mapM token
 
-  -- match a given string surounded by optional whitespace
+  -- match a given string with optional whitespace to the right
   wMatch :: String -> Parser String
-  wMatch s = do
-    whitespace
-    m <- match s
-    whitespace
-    return m
+  wMatch s = parseWhitespace (match s)
 
-  whitespace :: Parser String
-  whitespace = star $ spot isSpace
-
+  -- match an identifier with optional whitespace to the right
   wIdentifier :: Parser String
-  wIdentifier = do
-    whitespace
-    x <- identifier
-    whitespace
-    return x
+  wIdentifier = parseWhitespace identifier
 
+  -- match an identifier (starts with a lowercase character and contains
+  -- only alphanum characters).
   identifier :: Parser String
   identifier = do
     x <- spot isLower
     xs <- star $ spot isAlphaNum
     return (x:xs)
 
+  -- parse as much characters as possible until a given string is matched
   eatUntil :: String -> Parser String
   eatUntil s = wMatch s `mplus` do
     c <- char
     cs <- eatUntil s
     return (c:cs)
 
+  -- parse until a newline character is matched
   parseLine :: Parser String
   parseLine = do
      c <- char;
