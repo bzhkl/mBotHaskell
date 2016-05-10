@@ -1,4 +1,4 @@
-module Expressions (Exp, Environment, Value (..), evalExp, parseExp, parseExpBracket, lookup) where
+module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parseExpBracket, lookup) where
   import Prelude hiding (lookup)
   import qualified Data.Map.Strict as Map
   import Parser
@@ -15,7 +15,7 @@ module Expressions (Exp, Environment, Value (..), evalExp, parseExp, parseExpBra
   data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool | Fun (Value -> M Value)
 
   -- The 'Exp' datatype represents an expression which can be evaluated.
-  data Exp = Lit Value  | BinOp Exp Op Exp | UnOp Op Exp | Var Name | Lam Name Exp | App Exp Exp
+  data Exp = Lit Value | BinOp Exp Op Exp | UnOp Op Exp | Var Name | Lam Name Exp | App Exp Exp
        deriving (Show)
 
   -- The 'Op' datatype represents a unary or BinOp operation

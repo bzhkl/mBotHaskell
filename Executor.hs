@@ -15,15 +15,15 @@ module Executor(execute) where
     let value = evalExp ex env
     case value of
       Success a -> put $ Map.insert name a env
-      Error s   -> lift $ putStrLn s
+      Error s   -> raiseError s
 
   --Execute the change of an existing variable
   execute (name ::= ex) = do
     env <- get
     let value = lookup name env >> evalExp ex env
     case value of
-      Error s   -> lift $ putStrLn s
       Success a -> put $ Map.insert name a env
+      Error s   -> raiseError s
 
   --Execute an if-statement
   execute (If ex stmt) = do
@@ -32,8 +32,8 @@ module Executor(execute) where
     case predicate of
       Success (MyBool True)  -> execute stmt
       Success (MyBool False) -> next
-      Error s                -> lift $ putStrLn s
-      _                      -> lift $ putStrLn "Invalid type in if-statement"
+      Error s                -> raiseError s
+      _                      -> raiseError "Invalid type in if-statement"
 
   --Execute a while loop
   execute (While ex stmt) = do
@@ -42,13 +42,18 @@ module Executor(execute) where
     case predicate of
       Success (MyBool True)   -> execute stmt >> execute (While ex stmt)
       Success (MyBool False)  -> next
-      Error s                 -> lift $ putStrLn s
-      Success a               -> lift $ putStrLn ("Invalid type in while-statement: " ++ show a)
+      Error s                 -> raiseError s
+      Success a               -> raiseError ("Invalid type in while-statement: " ++ show a)
 
   --Execute a for loop
   execute (For assign predicate change stmt) = do
+    let runFor = execute $ While predicate (Sequence [stmt, change])
     execute assign
-    execute $ While predicate (Sequence [stmt, change])
+    case change of
+      _ ::= _ -> runFor
+      Inc _   -> runFor
+      Dec _   -> runFor
+      _       -> raiseError "Invalid change statement in for loop"
 
   --Execute a block
   execute (Block stmt) = do
@@ -71,6 +76,9 @@ module Executor(execute) where
       Error s -> s)
 
   execute _ = next
+
+  raiseError :: String -> StateT Environment IO ()
+  raiseError s = lift $ putStrLn $ "RUNTIME ERROR: " ++ s
 
   --Do nothing
   next :: StateT Environment IO ()
