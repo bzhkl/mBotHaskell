@@ -1,7 +1,7 @@
 --This module is used for parsing characters and strings.
 module StringParser (char, spot, token, notToken, wToken, match, whitespace,
                      wMatch, identifier, wIdentifier, bracket, bracket',
-                     eatUntil, parseLine, roundBracket, parseWhitespace) where
+                     eatUntil, parseLine, roundBracket, addWhitespace) where
   import Control.Monad
   import Data.Char
   import Parser
@@ -45,15 +45,15 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
   whitespace = star $ spot isSpace
 
   --Change a parser so it parses optional whitespace to the right
-  parseWhitespace :: Parser a -> Parser a
-  parseWhitespace p = do
+  addWhitespace :: Parser a -> Parser a
+  addWhitespace p = do
     m <- p
     _ <- whitespace
     return m
 
   --Parse a token with optional whitespace to the right
   wToken :: Char -> Parser Char
-  wToken t = parseWhitespace (token t)
+  wToken t = addWhitespace (token t)
 
   -- match a given string
   match :: String -> Parser String
@@ -61,11 +61,11 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
 
   -- match a given string with optional whitespace to the right
   wMatch :: String -> Parser String
-  wMatch s = parseWhitespace (match s)
+  wMatch s = addWhitespace (match s)
 
   -- match an identifier with optional whitespace to the right
   wIdentifier :: Parser String
-  wIdentifier = parseWhitespace identifier
+  wIdentifier = addWhitespace identifier
 
   -- match an identifier (starts with a lowercase character and contains
   -- only alphanum characters).
