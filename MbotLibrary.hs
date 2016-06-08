@@ -1,5 +1,5 @@
 module MBotLibrary(defaultSpeed, wait, runMotor, timedAction, getDistance, getLine, leftLed,
-      rightLed, forward, backward, turnRight, turnLeft, stopMotor, openMBot, Device) where
+      rightLed, forward, backward, turnRight, turnLeft, stopMotor, openMBot, Device, Line(..)) where
   import MBot
   import Prelude hiding (getLine)
   import Data.Bits

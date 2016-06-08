@@ -26,6 +26,7 @@ module Statements (Stmt (..), Direction (..), Led(..), parseProgram) where
               parseLineComment `mplus` parseBlockComment `mplus` parseFor      `mplus`
               parseDelimited
 
+  --Combine the semicolon ended parse functions
   parseDelimited :: Parser Stmt
   parseDelimited = let stmt = parseAssign `mplus`
                               parseChange `mplus`

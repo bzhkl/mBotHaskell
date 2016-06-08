@@ -1,5 +1,5 @@
 module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parseExpBracket, parseExpBracketN, lookup) where
-  import Prelude hiding (lookup)
+  import Prelude hiding (lookup, getLine)
   import qualified Data.Map.Strict as Map
   import Parser
   import qualified NumberParser as NumParser
@@ -13,10 +13,11 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   type Name = String
 
   -- The 'Value' datatype represents a primitive value in our cute little language.
-  data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool | Fun (Value -> M Value) | MyMBot Device
+  data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool | Fun (Value -> M Value) | MyMBot Device |
+               MyMBotDist (IO Float) | MyMBotLine (IO Line)
 
   -- The 'Exp' datatype represents an expression which can be evaluated.
-  data Exp = Lit Value | BinOp Exp Op Exp | UnOp Op Exp | Var Name | Lam Name Exp | App Exp Exp
+  data Exp = Lit Value | BinOp Exp Op Exp | UnOp Op Exp | Var Name | Lam Name Exp | App Exp Exp | MBotDist | MBotLine
        deriving (Show)
 
   -- The 'Op' datatype represents a unary or BinOp operation
@@ -45,6 +46,7 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   lookup x m = case Map.lookup x m of
     Just v -> return v
     Nothing -> errorM ("Unbound variable: " ++ x)
+
 
   evalUnOp :: Op -> Value -> M Value
   evalUnOp (:+:) (MyInt a) = return $ MyInt a
@@ -111,7 +113,8 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   parseExp :: Parser Exp
   parseExp = parseDec  `mplus` parseInt   `mplus` parseString `mplus`
              parseBool `mplus` parseBinOp `mplus` parseName `mplus`
-             parseUnOp `mplus` parseLam   `mplus` parseApp
+             parseUnOp `mplus` parseLam   `mplus` parseApp `mplus`
+             parseMBotLine `mplus` parseMBotDist
 
   --Parse an expression surrounded by round brackets
   parseExpBracket :: Parser Exp
@@ -182,6 +185,12 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
     lam <- parseExp
     arg <- roundBracket parseExp
     return $ App lam arg
+
+  parseMBotLine :: Parser Exp
+  parseMBotLine = wMatch "getLine()" >> return MBotLine
+
+  parseMBotDist :: Parser Exp
+  parseMBotDist = wMatch "getDistance()" >> return MBotDist
 
   --Create a parser for a unary operation
   makeUnOp :: String -> Op -> Parser Exp
