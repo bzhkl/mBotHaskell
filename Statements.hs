@@ -1,4 +1,5 @@
-module Statements (Stmt (..), parseProgram) where
+module Statements (Stmt (..), Direction (..), Led(..), parseProgram) where
+  import Prelude hiding (Left, Right)
   import Parser
   import StringParser
   import SequenceParser
@@ -6,7 +7,13 @@ module Statements (Stmt (..), parseProgram) where
   import Expressions
 
   data Stmt = Noop | Name := Exp | Name ::= Exp | If Exp Stmt | While Exp Stmt |
-              Sequence [Stmt] | Block Stmt | Print Exp | For Stmt Exp Stmt Stmt
+              Sequence [Stmt] | Block Stmt | Print Exp | For Stmt Exp Stmt Stmt |
+              Move Direction Exp Exp | SetLed Led Exp Exp Exp
+     deriving Show
+
+  data Direction = Forward | Backward | Left | Right
+     deriving Show
+  data Led = Led1 | Led2
      deriving Show
 
   --Parse an application
@@ -22,8 +29,30 @@ module Statements (Stmt (..), parseProgram) where
   parseDelimited :: Parser Stmt
   parseDelimited = let stmt = parseAssign `mplus`
                               parseChange `mplus`
-                              parsePrint
+                              parsePrint  `mplus`
+                              parseMoves  `mplus`
+                              parseLeds
                    in stmt >>= \s -> delim >> return s
+
+  --Parse an MBot setLed statement
+  parseLeds :: Parser Stmt
+  parseLeds = parseLed "setLed1" Led1 `mplus`
+              parseLed "setLed2" Led2
+    where parseLed name led = do
+            _ <- wMatch name
+            [r, g , b] <- parseExpBracketN 3
+            return $ SetLed led r g b
+
+  --Parse an MBot move statement
+  parseMoves :: Parser Stmt
+  parseMoves = parseMove "moveLeft"     Left      `mplus`
+               parseMove "moveRight"    Right     `mplus`
+               parseMove "moveForward"  Forward   `mplus`
+               parseMove "moveBackward" Backward
+    where parseMove name direction = do
+            _ <- wMatch name
+            [speed, time] <- parseExpBracketN 2
+            return $ Move direction speed time
 
   --Parse a sequence of statements, this is the only exported function of this module
   parseSequence :: Parser Stmt
@@ -88,4 +117,4 @@ module Statements (Stmt (..), parseProgram) where
 
   --Parse a semicolon followed by some whitespace
   delim :: Parser Char
-  delim = parseWhitespace (token ';')
+  delim = addWhitespace (token ';')

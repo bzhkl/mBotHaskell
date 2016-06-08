@@ -1,4 +1,4 @@
-module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parseExpBracket, lookup) where
+module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parseExpBracket, parseExpBracketN, lookup) where
   import Prelude hiding (lookup)
   import qualified Data.Map.Strict as Map
   import Parser
@@ -7,12 +7,13 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   import SequenceParser
   import Interpreter
   import Control.Monad
+  import MBotLibrary
 
   type Environment = Map.Map String Value
   type Name = String
 
   -- The 'Value' datatype represents a primitive value in our cute little language.
-  data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool | Fun (Value -> M Value)
+  data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool | Fun (Value -> M Value) | MyMBot Device
 
   -- The 'Exp' datatype represents an expression which can be evaluated.
   data Exp = Lit Value | BinOp Exp Op Exp | UnOp Op Exp | Var Name | Lam Name Exp | App Exp Exp
@@ -25,18 +26,18 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
             (:<=:) | (:==:) | (:!=:)
             deriving (Show)
 
-  evalExp :: Exp -> Environment -> M Value
-  evalExp (Lit t) _               = return t
-  evalExp (BinOp ex1 op ex2) env  = do
-    v1 <- evalExp ex1 env
-    v2 <- evalExp ex2 env
+  evalExp :: Environment -> Exp -> M Value
+  evalExp _ (Lit t)               = return t
+  evalExp env (BinOp ex1 op ex2)  = do
+    v1 <- evalExp env ex1
+    v2 <- evalExp env ex2
     evalBinOp v1 op v2
-  evalExp (UnOp op ex) env        = evalExp ex env >>= \v -> evalUnOp op v
-  evalExp (Var n) env             = lookup n env
-  evalExp (Lam n v) env           = return $ Fun (\x -> evalExp v (Map.insert n x env) )
-  evalExp (App ex1 ex2) env       = do
-    lam <- evalExp ex1 env
-    arg <- evalExp ex2 env
+  evalExp env (UnOp op ex)         = evalExp env ex >>= \v -> evalUnOp op v
+  evalExp env (Var n)              = lookup n env
+  evalExp env (Lam n v)            = return $ Fun (\x -> evalExp (Map.insert n x env) v)
+  evalExp env (App ex1 ex2)        = do
+    lam <- evalExp env ex1
+    arg <- evalExp env ex2
     evalFun lam arg
 
 
@@ -112,8 +113,14 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
              parseBool `mplus` parseBinOp `mplus` parseName `mplus`
              parseUnOp `mplus` parseLam   `mplus` parseApp
 
+  --Parse an expression surrounded by round brackets
   parseExpBracket :: Parser Exp
   parseExpBracket = roundBracket parseExp
+
+  --Parse a comma seperated list of expressions surrounded by
+  --round brackets
+  parseExpBracketN :: Int -> Parser [Exp]
+  parseExpBracketN n = roundBracket $ sepByN n (addWhitespace parseExp) (wToken ',')
 
   parseUnOp :: Parser Exp
   parseUnOp = parsePlus `mplus` parseMin
@@ -189,8 +196,9 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
     return $ BinOp a op b
 
   instance Show Value where
-    show (MyInt i) = show i
-    show (MyBool b) = show b
-    show (MyDec d) = show d
-    show (MyStr s) = s
+    show (MyInt i) = "Int: " ++ show i
+    show (MyBool b) = "Bool: " ++ show b
+    show (MyDec d) = "Double: " ++ show d
+    show (MyStr s) = "String: " ++ s
+    show (MyMBot _) = "(MBot)"
     show (Fun _) = "(Function)"

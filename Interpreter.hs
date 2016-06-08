@@ -18,3 +18,5 @@ module Interpreter (M (..), errorM) where
 
   errorM :: String -> M a
   errorM = Error
+
+  

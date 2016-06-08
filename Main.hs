@@ -7,7 +7,7 @@ import qualified Data.Map.Strict as Map
 
 main :: IO ()
 main = do
-  file <- readFile "test.js"
+  file <- readFile "MBot.js"
   let stmt = parse parseProgram file
   print stmt
   let env = Map.empty :: Environment

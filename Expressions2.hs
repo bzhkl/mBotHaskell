@@ -6,7 +6,7 @@ module Expressions2 (Exp, Value, evalExp, parseExp) where
   import StringParser
   import qualified NumberParser
 
-  data Exp    = AddOp Term Op Term | SingleTerm Term
+  data Exp    = AddOp Term Op Exp | SingleTerm Term
                 deriving (Show)
   data Term   = MulOp Factor Op Term | UnOp Op Term | SingleFactor Factor
                 deriving (Show)
@@ -23,7 +23,7 @@ module Expressions2 (Exp, Value, evalExp, parseExp) where
   evalExp :: Exp -> M Value
   evalExp (AddOp ex1 op ex2) = do
     v1 <- evalTerm ex1
-    v2 <- evalTerm ex2
+    v2 <- evalExp ex2
     evalBinOp v1 op v2
   evalExp (SingleTerm term) = evalTerm term
 
@@ -128,7 +128,7 @@ module Expressions2 (Exp, Value, evalExp, parseExp) where
   makeAddOp s op = do
     a <- parseTerm
     _ <- wMatch s
-    b <- parseTerm
+    b <- parseExp
     return $ AddOp a op b
 
   makeMulOp :: String -> Op -> Parser Term
