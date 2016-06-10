@@ -7,6 +7,7 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
   import Data.List
   import Parser
   import SequenceParser
+  import Debug.Trace
 
   -- Parse one character
   char :: Parser Char
@@ -78,12 +79,16 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
     guard $ checkLegalIdentifier name
     return name
 
-  -- parse as much characters as possible until a given string is matched
-  eatUntil :: String -> Parser ()
-  eatUntil s = do
-    parsed <- star char
-    _ <- wMatch s
-    return ()
+  -- parse as few characters as possible until a given string is matched
+  eatUntil :: String -> Parser String
+  eatUntil  = helper "" . reverse
+    where helper prev r = do
+            c <- char
+            let total = c:prev
+                matched = r `isPrefixOf` total
+            if matched
+              then addWhitespace $ return total
+              else helper total r
 
   -- parse until a newline character is matched
   parseLine :: Parser String

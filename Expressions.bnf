@@ -1,0 +1,22 @@
+<expression>     ::= <value> | <binop> | <unop> | <variable> | <lambda> | <apply>
+<value>          ::= <int> | <decimal> | <string> | <bool>
+<int>            ::= <nat> | '-' <nat>
+<nat>            ::= <digit> | <nat> <digit>
+<decimal>        ::= <int> '.' <nat>
+<string>         ::= '"' <char> <string> | <empty> '"'
+<bool>           ::= 'true' | 'false'
+<binop>          ::= '(' <expression> <op> <expression> ')'
+<unop>           ::= '(' <op> <expression> ')'
+<op>             ::= '+' | '-' | '*' | '/' | '&&' | '||' | '>' | '<' | '>=' | '<=' | '==' | '!='
+<variable>       ::= <identifier>
+<lambda>         ::= '(' <identifier> '=>' <expression> ')'
+<identifier>     ::= <lowercase> <alphanum> | <lowercase> #Except reserved words
+<apply>          ::= '(' <expression> '(' <expression> ')' ')'
+<digit>          ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+<uppercase>      ::= An uppercase word character (A..Z)
+<lowercase>      ::= A lowercase word character (a..z)
+<alphanum>       ::= <digit> | <lowercase> | <uppercase> | <empty>
+<alphanums>      ::= <alphanum> | <alphanums> <alphanum>
+<char>           ::= A Unicode character
+<chars>          ::= <char> | <chars> <char>
+<empty>          ::= ''

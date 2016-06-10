@@ -46,7 +46,7 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
               parseLed "setLed2" Led2
     where parseLed name led = do
             _ <- wMatch name
-            [r, g , b] <- parseExpBracketN 3
+            [r, g, b] <- parseExpBracketN 3
             return $ SetLed led r g b
 
   --Parse an MBot move statement

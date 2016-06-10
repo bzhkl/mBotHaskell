@@ -22,7 +22,7 @@ module NumberParser (parseNat, parseNeg, parseInt, parseDec) where
 
   parseDec :: Parser Double
   parseDec = do
-    n <- plus (spot isDigit)
+    n <- parseInt
     _ <- token '.'
-    c <- plus (spot isDigit)
-    return $ read (n ++ "." ++ c)
+    c <- parseNat
+    return $ read (show n ++ "." ++ show c)

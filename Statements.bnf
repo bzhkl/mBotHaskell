@@ -1,0 +1,29 @@
+<program>       ::= <sequence>
+<statement>     ::= <assignment> | <change> | <if> | <ifelse> | <while> |
+                    <sequence> | <block> | <print> | <for> | <move> | <setled> |
+                    <readsensor> | <wait> | <comment>
+<change>        ::= <identifier> '=' <expression> ';'
+<assignment>    ::= 'let' <change>
+<if>            ::= 'if' '(' <expression> ')' <block>
+<ifelse>        ::= <if> 'else' <block>
+<while>         ::= 'while' '(' <expression> ')' <block>
+<sequence>      ::= <statement>  | '' | <statement> <sequence>
+<block>         ::= '{' <sequence> '}'
+<print>         ::= 'console.log' '(' <expression> ')' ';'
+<for>           ::= 'for' '(' <assign> ';' <expression> ';' <change> ')' <block>
+<move>          ::= <moveleft> | <moveright> | <moveforward> | <movebackward>
+<moveleft>      ::= 'moveLeft' '(' <expression> ')' ';'
+<moveright>     ::= 'moveRight' '(' <expression> ')' ';'
+<moveforward>   ::= 'moveForward' '(' <expression> ')' ';'
+<movebackward>  ::= 'moveBackward' '(' <expression> ')' ';'
+<setled>        ::= <setled1> | <setled2>
+<setled1>       ::= 'setLed1' '(' <expression> ',' <expression> ',' <expression> ')' ';'
+<setled2>       ::= 'setLed2' '(' <expression> ',' <expression> ',' <expression> ')' ';'
+<readsensor>    ::= <readline> | <readdistance>
+<readline>      ::= 'let' <identifier> '=' 'MBOT_LINE' ';'
+<readdist>      ::= 'let' <identifier> '=' 'MBOT_DIST' ';'
+<wait>          ::= 'wait' '(' <expression> ')' ';'
+<comment>       ::= <linecomment> | <blockcomment>
+<linecomment>   ::= '//' <chars> <newline>
+<blockcomment>  ::= '/*' <chars> '*/'
+<newline>       ::=  # newline character
