@@ -4,6 +4,7 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
                      eatUntil, parseLine, roundBracket, addWhitespace) where
   import Control.Monad
   import Data.Char
+  import Data.List
   import Parser
   import SequenceParser
 
@@ -73,19 +74,25 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
   identifier = do
     x <- spot isLower
     xs <- star $ spot isAlphaNum
-    return (x:xs)
+    let name = x:xs
+    guard $ checkLegalIdentifier name
+    return name
 
   -- parse as much characters as possible until a given string is matched
-  eatUntil :: String -> Parser String
-  eatUntil s = wMatch s `mplus` do
-    c <- char
-    cs <- eatUntil s
-    return (c:cs)
+  eatUntil :: String -> Parser ()
+  eatUntil s = do
+    parsed <- star char
+    _ <- wMatch s
+    return ()
 
   -- parse until a newline character is matched
   parseLine :: Parser String
   parseLine = do
      c <- char;
      if c == '\n'
-       then return [c]
+       then whitespace >> return [c]
        else parseLine >>= \s -> return (c:s)
+
+  checkLegalIdentifier :: String -> Bool
+  checkLegalIdentifier name = let reserved = ["true", "false", "let", "if", "else", "for", "while"]
+                              in  name `notElem` reserved

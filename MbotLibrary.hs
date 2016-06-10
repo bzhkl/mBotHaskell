@@ -1,9 +1,8 @@
-module MBotLibrary(defaultSpeed, wait, runMotor, timedAction, getDistance, getLine, leftLed,
+module MBotLibrary(defaultSpeed, getDistance, getLine, leftLed,
       rightLed, forward, backward, turnRight, turnLeft, stopMotor, openMBot, Device, Line(..)) where
   import MBot
   import Prelude hiding (getLine)
   import Data.Bits
-  import Control.Concurrent
   import System.HIDAPI
 
   defaultSpeed :: Int
@@ -11,23 +10,6 @@ module MBotLibrary(defaultSpeed, wait, runMotor, timedAction, getDistance, getLi
 
   stop :: Int
   stop = 0
-
-  --Convert seconds to microseconds
-  toMicros :: Double -> Int
-  toMicros t = round (t * 1000000)
-
-  --Wait a given amount of seconds
-  wait :: Double -> IO ()
-  wait time = threadDelay (toMicros time)
-
-  --Run the motor action for a given amount of seconds. This function stops
-  --the motor when the time is elapased.
-  runMotor :: (Device -> IO ()) -> Device -> Double -> IO ()
-  runMotor action d time = timedAction action d time >> stopMotor d
-
-  --Run an action and wait the given amount of seconds.
-  timedAction :: (Device -> IO ()) -> Device -> Double -> IO ()
-  timedAction action d time = action d >> wait time
 
   --Get the distance using the ultrasonic sensor
   getDistance :: Device -> IO Float

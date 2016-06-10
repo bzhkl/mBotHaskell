@@ -13,7 +13,7 @@ module NumberParser (parseNat, parseNeg, parseInt, parseDec) where
   -- match a negative number
   parseNeg :: Parser Int
   parseNeg = do
-    token '-'
+    _ <- token '-'
     n <- parseNat
     return (-n)
   -- match an integer
@@ -23,6 +23,6 @@ module NumberParser (parseNat, parseNeg, parseInt, parseDec) where
   parseDec :: Parser Double
   parseDec = do
     n <- plus (spot isDigit)
-    token '.'
+    _ <- token '.'
     c <- plus (spot isDigit)
     return $ read (n ++ "." ++ c)

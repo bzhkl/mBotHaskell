@@ -1,30 +1,30 @@
 module Executor(execute) where
-  import Prelude hiding (lookup, Left, Right)
+  import Prelude hiding (lookup, getLine, Left, Right)
   import Expressions
   import Statements
   import Interpreter
   import qualified Data.Map.Strict as Map
   import Control.Monad.Trans.State
   import Control.Monad.Trans.Class
+  import Control.Concurrent
   import MBotLibrary
 
   execute :: Stmt -> StateT Environment IO ()
 
   --Execute an MBot move
-  execute (Move direction ex1 ex2) = do
+  execute (Move direction ex) = do
     env <- get
     mbot <- getMBot
-    let values = mapM (evalExp env) [ex1, ex2]
-    case values of
-      Success [MyInt speed, MyDec time] -> lift $ moveMBot direction speed time mbot
-      Success [MyInt speed, MyInt time] -> lift $ moveMBot direction speed (fromIntegral time) mbot
+    let value = evalExp env ex
+    case value of
+      Success (MyInt speed) -> lift $ moveMBot direction speed mbot
       Success _ -> raiseError "Invalid types in move-statement"
       Error s -> raiseError s
-    where moveMBot :: Direction -> Int -> Double -> Device -> IO ()  --Mappings to the MBot API
-          moveMBot Forward s t dev = runMotor (forward s) dev t
-          moveMBot Backward s t dev = runMotor (backward s) dev t
-          moveMBot Left s t dev = runMotor (turnLeft s) dev t
-          moveMBot Right s t dev = runMotor (turnRight s) dev t
+    where moveMBot :: Direction -> Int -> Device -> IO ()  --Mappings to the MBot API
+          moveMBot Forward s dev  = forward s dev
+          moveMBot Backward s dev = backward s dev
+          moveMBot Left s dev     = turnLeft s dev
+          moveMBot Right s dev    = turnRight s dev
 
   --Execute a led change command
   execute (SetLed led ex1 ex2 ex3) = do
@@ -38,6 +38,20 @@ module Executor(execute) where
     where setLed :: Led -> Int -> Int -> Int -> Device -> IO ()     --Mappings to the MBot API
           setLed Led1 = leftLed
           setLed Led2 = rightLed
+
+  --Execute a read line sensor statement
+  execute (ReadSensor Line name) = do
+    mbot <- getMBot
+    env <- get
+    line <- lift $ getLine mbot
+    put $ Map.insert name (MyStr $ show line) env
+
+  --Execute a read distance sensor statement
+  execute (ReadSensor Distance name) = do
+    mbot <- getMBot
+    env <- get
+    dist <- lift $ getDistance mbot
+    put $ Map.insert name (MyDec $ realToFrac dist) env
 
   --Execute the assignment of a new variable
   execute (name := ex) = do
@@ -56,12 +70,14 @@ module Executor(execute) where
       Error s   -> raiseError s
 
   --Execute an if-statement
-  execute (If ex stmt) = do
+  execute (If ex stmt) = execute $ IfElse ex stmt Noop
+
+  execute (IfElse ex ifStmt elseStmt) = do
     env <- get
     let predicate = evalExp env ex
     case predicate of
-      Success (MyBool True)  -> execute stmt
-      Success (MyBool False) -> next
+      Success (MyBool True)  -> execute ifStmt
+      Success (MyBool False) -> execute elseStmt
       Error s                -> raiseError s
       _                      -> raiseError "Invalid type in if-statement"
 
@@ -93,8 +109,8 @@ module Executor(execute) where
     let newEnv = changed `Map.union` initEnv `Map.union` globals
     put newEnv
 
-  --Execute a sequence
-  execute (Sequence (st:sts)) = execute st >> execute (Sequence sts)
+  --Execute a sequence of statements
+  execute (Sequence sts) = sequence_ $ fmap execute sts
 
   --Execute a print statement
   execute (Print ex) = do
@@ -104,7 +120,19 @@ module Executor(execute) where
       Success a -> show a
       Error s -> s)
 
-  execute _ = next
+  execute (Wait ex) = do
+    env <- get
+    let time = evalExp env ex
+    case time of
+      Success (MyDec t) -> delay t
+      Success (MyInt t) -> delay $ fromIntegral t
+      Success _         -> raiseError "Invalid type in wait statement"
+      Error   s         -> raiseError s
+    where toMicros t = round $ t * 1000000
+          delay = lift .threadDelay . toMicros
+
+  --Do nothing
+  execute Noop = next
 
   --Return the MBot device, this function opens the MBot if no _MBOT is
   --available in the Environment. Else the MBot from the Environment is
@@ -119,6 +147,7 @@ module Executor(execute) where
         put $ Map.insert "_MBOT" (MyMBot mbot) env    --Add MBot to environment
         return mbot
 
+  --Show an error message
   raiseError :: String -> StateT Environment IO ()
   raiseError s = lift $ putStrLn $ "RUNTIME ERROR: " ++ s
 

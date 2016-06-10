@@ -1,3 +1,4 @@
+import System.Environment
 import Statements
 import Parser
 import Executor
@@ -7,7 +8,9 @@ import qualified Data.Map.Strict as Map
 
 main :: IO ()
 main = do
-  file <- readFile "MBot.js"
+  args <- getArgs
+  let filename = "JavaScript/" ++ head args ++ ".js"
+  file <- readFile filename
   let stmt = parse parseProgram file
   print stmt
   let env = Map.empty :: Environment

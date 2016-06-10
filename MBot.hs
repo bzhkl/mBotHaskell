@@ -40,9 +40,7 @@ module MBot (openMBot,
              Line(LEFTB, RIGHTB, BOTHB, BOTHW),
              Command(MBotCommand) ) where
 
-import Control.Monad.Trans
 import Control.Concurrent
-import Data.Int
 import qualified Data.ByteString as BS
 import System.HIDAPI as HID
 import GHC.Word

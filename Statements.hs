@@ -1,4 +1,4 @@
-module Statements (Stmt (..), Direction (..), Led(..), parseProgram) where
+module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram) where
   import Prelude hiding (Left, Right)
   import Parser
   import StringParser
@@ -8,9 +8,12 @@ module Statements (Stmt (..), Direction (..), Led(..), parseProgram) where
 
   data Stmt = Noop | Name := Exp | Name ::= Exp | If Exp Stmt | While Exp Stmt |
               Sequence [Stmt] | Block Stmt | Print Exp | For Stmt Exp Stmt Stmt |
-              Move Direction Exp Exp | SetLed Led Exp Exp Exp
+              Move Direction Exp | SetLed Led Exp Exp Exp | ReadSensor Sensor Name |
+              Wait Exp | IfElse Exp Stmt Stmt
      deriving Show
 
+  data Sensor = Line | Distance
+      deriving Show
   data Direction = Forward | Backward | Left | Right
      deriving Show
   data Led = Led1 | Led2
@@ -24,15 +27,17 @@ module Statements (Stmt (..), Direction (..), Led(..), parseProgram) where
   parseStmt :: Parser Stmt
   parseStmt = parseBlock       `mplus` parseIf           `mplus` parseWhile    `mplus`
               parseLineComment `mplus` parseBlockComment `mplus` parseFor      `mplus`
-              parseDelimited
+              parseDelimited   `mplus` parseIfElse
 
   --Combine the semicolon ended parse functions
   parseDelimited :: Parser Stmt
-  parseDelimited = let stmt = parseAssign `mplus`
-                              parseChange `mplus`
-                              parsePrint  `mplus`
-                              parseMoves  `mplus`
-                              parseLeds
+  parseDelimited = let stmt = parseAssign  `mplus`
+                              parseChange  `mplus`
+                              parsePrint   `mplus`
+                              parseMoves   `mplus`
+                              parseLeds    `mplus`
+                              parseSensors `mplus`
+                              parseWait
                    in stmt >>= \s -> delim >> return s
 
   --Parse an MBot setLed statement
@@ -52,8 +57,8 @@ module Statements (Stmt (..), Direction (..), Led(..), parseProgram) where
                parseMove "moveBackward" Backward
     where parseMove name direction = do
             _ <- wMatch name
-            [speed, time] <- parseExpBracketN 2
-            return $ Move direction speed time
+            speed <- parseExpBracket
+            return $ Move direction speed
 
   --Parse a sequence of statements, this is the only exported function of this module
   parseSequence :: Parser Stmt
@@ -79,12 +84,29 @@ module Statements (Stmt (..), Direction (..), Led(..), parseProgram) where
     ex <- parseExp
     return (name, ex)
 
+  --Parse the MBot line and distance sensor
+  parseSensors :: Parser Stmt
+  parseSensors = parseSensor "MBOT_LINE" Line `mplus`
+                 parseSensor "MBOT_DIST" Distance
+    where parseSensor keyword sensor = do
+            _ <- wMatch "let"
+            name <- wIdentifier
+            _ <- wToken '=' >> wMatch keyword
+            return $ ReadSensor sensor name
+
   --Parse an if statement
   parseIf :: Parser Stmt
   parseIf = wMatch "if" >> do
     ex <- parseExpBracket
     stmt <- parseBlock
     return $ If ex stmt
+
+  parseIfElse :: Parser Stmt
+  parseIfElse = do
+    (If ex ifStmt) <- parseIf
+    _ <- wMatch "else"
+    elseStmt <- parseBlock
+    return $ IfElse ex ifStmt elseStmt
 
   --Parse a for loop
   parseFor :: Parser Stmt
@@ -108,13 +130,17 @@ module Statements (Stmt (..), Direction (..), Led(..), parseProgram) where
   parsePrint :: Parser Stmt
   parsePrint = wMatch "console.log" >> fmap Print parseExpBracket
 
+  --Parse a wait statement
+  parseWait :: Parser Stmt
+  parseWait = wMatch "wait" >> fmap Wait parseExpBracket
+
   --Parse a single line comment
   parseLineComment :: Parser Stmt
-  parseLineComment = match "//" >> parseLine >> return Noop
+  parseLineComment = wMatch "//" >> parseLine >> return Noop
 
   --Parse a block comment
   parseBlockComment :: Parser Stmt
-  parseBlockComment = match "/*" >> eatUntil "*/" >> return Noop
+  parseBlockComment = wMatch "/*" >> eatUntil "*/" >> return Noop
 
   --Parse a semicolon followed by some whitespace
   delim :: Parser Char
