@@ -53,13 +53,17 @@ module Executor(execute) where
     dist <- lift $ getDistance mbot
     put $ Map.insert name (MyDec $ realToFrac dist) env
 
-  --Execute the assignment of a new variable
+  --Execute the declaration of a new variable
   execute (name := ex) = do
     env <- get
-    let value = evalExp env ex
-    case value of
-      Success a -> put $ Map.insert name a env
-      Error s   -> raiseError s
+    let exists = name `elem` Map.keysSet env
+    if exists
+      then raiseError "Variable name already exists"
+      else let value = evalExp env ex in
+           case value of
+              Success a -> put $ Map.insert name a env
+              Error s   -> raiseError s
+
 
   --Execute the change of an existing variable
   execute (name ::= ex) = do
@@ -120,12 +124,13 @@ module Executor(execute) where
       Success a -> show a
       Error s -> s)
 
+  --Execute a wait statement
   execute (Wait ex) = do
     env <- get
     let time = evalExp env ex
     case time of
       Success (MyDec t) -> delay t
-      Success (MyInt t) -> delay $ fromIntegral t
+      Success (MyInt t) -> delay $ fromIntegral t  --Convert to double
       Success _         -> raiseError "Invalid type in wait statement"
       Error   s         -> raiseError s
     where toMicros t = round $ t * 1000000
@@ -149,7 +154,7 @@ module Executor(execute) where
 
   --Show an error message
   raiseError :: String -> StateT Environment IO ()
-  raiseError s = lift $ putStrLn $ "RUNTIME ERROR: " ++ s
+  raiseError = lift . fail . ("RUNTIME ERROR: " ++)
 
   --Do nothing
   next :: StateT Environment IO ()

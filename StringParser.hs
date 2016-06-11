@@ -7,8 +7,7 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
   import Data.List
   import Parser
   import SequenceParser
-  import Debug.Trace
-
+  
   -- Parse one character
   char :: Parser Char
   char = Parser f

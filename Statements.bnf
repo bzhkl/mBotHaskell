@@ -1,16 +1,16 @@
 <program>       ::= <sequence>
-<statement>     ::= <assignment> | <change> | <if> | <ifelse> | <while> |
+<statement>     ::= <declaration> | <change> | <if> | <ifelse> | <while> |
                     <sequence> | <block> | <print> | <for> | <move> | <setled> |
                     <readsensor> | <wait> | <comment>
 <change>        ::= <identifier> '=' <expression> ';'
-<assignment>    ::= 'let' <change>
+<declaration>   ::= 'let' <change>
 <if>            ::= 'if' '(' <expression> ')' <block>
 <ifelse>        ::= <if> 'else' <block>
 <while>         ::= 'while' '(' <expression> ')' <block>
 <sequence>      ::= <statement>  | '' | <statement> <sequence>
 <block>         ::= '{' <sequence> '}'
 <print>         ::= 'console.log' '(' <expression> ')' ';'
-<for>           ::= 'for' '(' <assign> ';' <expression> ';' <change> ')' <block>
+<for>           ::= 'for' '(' <declaration> ';' <expression> ';' <change> ')' <block>
 <move>          ::= <moveleft> | <moveright> | <moveforward> | <movebackward>
 <moveleft>      ::= 'moveLeft' '(' <expression> ')' ';'
 <moveright>     ::= 'moveRight' '(' <expression> ')' ';'

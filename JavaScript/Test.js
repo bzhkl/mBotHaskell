@@ -1,7 +1,3 @@
-let a = 5.5;
-let b = 3.2;
-/*azerty*/
-let c = (a + b);
-console.log(c);
-/*HEllo
-World*//*Fuck my life*/
+for(let i=0; (i<5); i=(i+1)) {
+	console.log(("i: " + i));
+}

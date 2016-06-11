@@ -31,12 +31,12 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
 
   --Combine the semicolon ended parse functions
   parseDelimited :: Parser Stmt
-  parseDelimited = let stmt = parseAssign  `mplus`
-                              parseChange  `mplus`
-                              parsePrint   `mplus`
-                              parseMoves   `mplus`
-                              parseLeds    `mplus`
-                              parseSensors `mplus`
+  parseDelimited = let stmt = parseDeclare  `mplus`
+                              parseChange   `mplus`
+                              parsePrint    `mplus`
+                              parseMoves    `mplus`
+                              parseLeds     `mplus`
+                              parseSensors  `mplus`
                               parseWait
                    in stmt >>= \s -> delim >> return s
 
@@ -44,10 +44,10 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
   parseLeds :: Parser Stmt
   parseLeds = parseLed "setLed1" Led1 `mplus`
               parseLed "setLed2" Led2
-    where parseLed name led = do
-            _ <- wMatch name
-            [r, g, b] <- parseExpBracketN 3
-            return $ SetLed led r g b
+        where parseLed name led = do
+                _ <- wMatch name
+                [r, g, b] <- parseExpBracketN 3
+                return $ SetLed led r g b
 
   --Parse an MBot move statement
   parseMoves :: Parser Stmt
@@ -55,10 +55,10 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
                parseMove "moveRight"    Right     `mplus`
                parseMove "moveForward"  Forward   `mplus`
                parseMove "moveBackward" Backward
-    where parseMove name direction = do
-            _ <- wMatch name
-            speed <- parseExpBracket
-            return $ Move direction speed
+         where parseMove name direction = do
+                 _ <- wMatch name
+                 speed <- parseExpBracket
+                 return $ Move direction speed
 
   --Parse a sequence of statements, this is the only exported function of this module
   parseSequence :: Parser Stmt
@@ -68,9 +68,9 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
   parseBlock :: Parser Stmt
   parseBlock = fmap Block (bracket (wToken '{') parseSequence (wToken '}'))
 
-  --Parse a variable assignment
-  parseAssign :: Parser Stmt
-  parseAssign = wMatch "let" >> fmap (uncurry (:=)) assignHelper
+  --Parse a variable declaration
+  parseDeclare :: Parser Stmt
+  parseDeclare = wMatch "let" >> fmap (uncurry (:=)) assignHelper
 
   --Parse a variable change
   parseChange :: Parser Stmt
@@ -112,7 +112,7 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
   parseFor :: Parser Stmt
   parseFor = wMatch "for" >> do
     (assign, predicate, change) <- roundBracket (do
-        a <- parseAssign
+        a <- parseDeclare
         p <- bracket delim parseExp delim
         c <- parseChange
         return (a, p, c))
