@@ -7,7 +7,7 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
   import Data.List
   import Parser
   import SequenceParser
-  
+
   -- Parse one character
   char :: Parser Char
   char = Parser f
@@ -16,10 +16,7 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
 
   -- Parse a character satisfying a predicate (e.g., isDigit)
   spot :: (Char -> Bool) -> Parser Char
-  spot p = do
-    c <- char
-    guard (p c)
-    return c
+  spot p = char >>= \c -> guard (p c) >> return c
 
   -- Match a given character
   token :: Char -> Parser Char
@@ -47,10 +44,7 @@ module StringParser (char, spot, token, notToken, wToken, match, whitespace,
 
   --Change a parser so it parses optional whitespace to the right
   addWhitespace :: Parser a -> Parser a
-  addWhitespace p = do
-    m <- p
-    _ <- whitespace
-    return m
+  addWhitespace p = p >>= \m -> whitespace >> return m
 
   --Parse a token with optional whitespace to the right
   wToken :: Char -> Parser Char

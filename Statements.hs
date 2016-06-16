@@ -14,7 +14,7 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
 
   data Sensor = Line | Distance
       deriving Show
-  data Direction = Forward | Backward | Left | Right
+  data Direction = Forward | Backward | TurnLeft | TurnRight
      deriving Show
   data Led = Led1 | Led2
      deriving Show
@@ -25,18 +25,15 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
 
   --Parse a single statement
   parseStmt :: Parser Stmt
-  parseStmt = parseBlock       `mplus` parseIf           `mplus` parseWhile    `mplus`
-              parseLineComment `mplus` parseBlockComment `mplus` parseFor      `mplus`
+  parseStmt = parseBlock       `mplus` parseIf           `mplus` parseWhile `mplus`
+              parseLineComment `mplus` parseBlockComment `mplus` parseFor   `mplus`
               parseDelimited   `mplus` parseIfElse
 
   --Combine the semicolon ended parse functions
   parseDelimited :: Parser Stmt
-  parseDelimited = let stmt = parseDeclare  `mplus`
-                              parseChange   `mplus`
-                              parsePrint    `mplus`
-                              parseMoves    `mplus`
-                              parseLeds     `mplus`
-                              parseSensors  `mplus`
+  parseDelimited = let stmt = parseDeclare  `mplus` parseChange   `mplus`
+                              parsePrint    `mplus` parseMoves    `mplus`
+                              parseLeds     `mplus` parseSensors  `mplus`
                               parseWait
                    in stmt >>= \s -> delim >> return s
 
@@ -51,55 +48,45 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
 
   --Parse an MBot move statement
   parseMoves :: Parser Stmt
-  parseMoves = parseMove "moveLeft"     Left      `mplus`
-               parseMove "moveRight"    Right     `mplus`
+  parseMoves = parseMove "moveLeft"     TurnLeft  `mplus`
+               parseMove "moveRight"    TurnRight `mplus`
                parseMove "moveForward"  Forward   `mplus`
                parseMove "moveBackward" Backward
-         where parseMove name direction = do
-                 _ <- wMatch name
-                 speed <- parseExpBracket
-                 return $ Move direction speed
+         where parseMove name direction = Move direction <$>
+                                               (wMatch name >> parseExpBracket)
 
   --Parse a sequence of statements, this is the only exported function of this module
   parseSequence :: Parser Stmt
-  parseSequence = fmap Sequence (star parseStmt)
+  parseSequence = Sequence <$> star parseStmt
 
   --Parse a code block, a block is a nested sequence of statements
   parseBlock :: Parser Stmt
-  parseBlock = fmap Block (bracket (wToken '{') parseSequence (wToken '}'))
+  parseBlock = Block <$> bracket (wToken '{') parseSequence (wToken '}')
 
   --Parse a variable declaration
   parseDeclare :: Parser Stmt
-  parseDeclare = wMatch "let" >> fmap (uncurry (:=)) assignHelper
+  parseDeclare =  uncurry (:=) <$> (wMatch "let" >> assignHelper)
 
   --Parse a variable change
   parseChange :: Parser Stmt
-  parseChange = fmap (uncurry (::=)) assignHelper
+  parseChange = uncurry (::=) <$> assignHelper
 
   --Helper function used for variable assignment and variable change
   assignHelper :: Parser (String, Exp)
-  assignHelper = do
-    name <- wIdentifier
-    _ <- wToken '='
-    ex <- parseExp
-    return (name, ex)
+  assignHelper = toPair <$> wIdentifier <*> (wToken '=' >> parseExp)
 
   --Parse the MBot line and distance sensor
   parseSensors :: Parser Stmt
   parseSensors = parseSensor "MBOT_LINE" Line `mplus`
                  parseSensor "MBOT_DIST" Distance
     where parseSensor keyword sensor = do
-            _ <- wMatch "let"
-            name <- wIdentifier
+            name <- wMatch "let" >> wIdentifier
             _ <- wToken '=' >> wMatch keyword
             return $ ReadSensor sensor name
 
   --Parse an if statement
   parseIf :: Parser Stmt
-  parseIf = wMatch "if" >> do
-    ex <- parseExpBracket
-    stmt <- parseBlock
-    return $ If ex stmt
+  parseIf = If <$> (wMatch "if" >> parseExpBracket) <*> parseBlock
 
   parseIfElse :: Parser Stmt
   parseIfElse = do
@@ -121,18 +108,15 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
 
   --Parse a while loop
   parseWhile :: Parser Stmt
-  parseWhile = wMatch "while" >> do
-    ex <- parseExpBracket
-    stmt <- parseBlock
-    return $ While ex stmt
+  parseWhile = While <$> (wMatch "while" >> parseExpBracket) <*> parseBlock
 
   --Parse a print statement
   parsePrint :: Parser Stmt
-  parsePrint = wMatch "console.log" >> fmap Print parseExpBracket
+  parsePrint = Print <$> (wMatch "console.log" >> parseExpBracket)
 
   --Parse a wait statement
   parseWait :: Parser Stmt
-  parseWait = wMatch "wait" >> fmap Wait parseExpBracket
+  parseWait = Wait <$> (wMatch "wait" >> parseExpBracket)
 
   --Parse a single line comment
   parseLineComment :: Parser Stmt
@@ -145,3 +129,7 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
   --Parse a semicolon followed by some whitespace
   delim :: Parser Char
   delim = addWhitespace (token ';')
+
+  --Helper function to create pair
+  toPair :: a -> b -> (a, b)
+  toPair a b = (a, b)

@@ -1,8 +1,7 @@
 module Executor(execute) where
-  import Prelude hiding (lookup, getLine, Left, Right)
+  import Prelude hiding (lookup, getLine)
   import Expressions
   import Statements
-  import Interpreter
   import qualified Data.Map.Strict as Map
   import Control.Monad.Trans.State
   import Control.Monad.Trans.Class
@@ -17,14 +16,15 @@ module Executor(execute) where
     mbot <- getMBot
     let value = evalExp env ex
     case value of
-      Success (MyInt speed) -> lift $ moveMBot direction speed mbot
-      Success _ -> raiseError "Invalid types in move-statement"
-      Error s -> raiseError s
+      Right (MyInt speed) -> lift $ moveMBot direction speed mbot
+      Right _             -> raiseError "Invalid types in move-statement"
+      Left  s             -> raiseError s
+
     where moveMBot :: Direction -> Int -> Device -> IO ()  --Mappings to the MBot API
-          moveMBot Forward s dev  = forward s dev
-          moveMBot Backward s dev = backward s dev
-          moveMBot Left s dev     = turnLeft s dev
-          moveMBot Right s dev    = turnRight s dev
+          moveMBot Forward s dev    = forward s dev
+          moveMBot Backward s dev   = backward s dev
+          moveMBot TurnLeft s dev   = turnLeft s dev
+          moveMBot TurnRight s dev  = turnRight s dev
 
   --Execute a led change command
   execute (SetLed led ex1 ex2 ex3) = do
@@ -32,9 +32,9 @@ module Executor(execute) where
     mbot <- getMBot
     let values = mapM (evalExp env) [ex1, ex2, ex3]
     case values of
-      Success [MyInt r, MyInt g, MyInt b] -> lift $ setLed led r g b mbot
-      Success _ -> raiseError "Invalid types in led-statement"
-      Error s -> raiseError s
+      Right [MyInt r, MyInt g, MyInt b] -> lift $ setLed led r g b mbot
+      Right _ -> raiseError "Invalid types in led-statement"
+      Left  s -> raiseError s
     where setLed :: Led -> Int -> Int -> Int -> Device -> IO ()     --Mappings to the MBot API
           setLed Led1 = leftLed
           setLed Led2 = rightLed
@@ -61,8 +61,8 @@ module Executor(execute) where
       then raiseError "Variable name already exists"
       else let value = evalExp env ex in
            case value of
-              Success a -> put $ Map.insert name a env
-              Error s   -> raiseError s
+              Right a -> put $ Map.insert name a env
+              Left  s -> raiseError s
 
 
   --Execute the change of an existing variable
@@ -70,8 +70,8 @@ module Executor(execute) where
     env <- get
     let value = lookup name env >> evalExp env ex
     case value of
-      Success a -> put $ Map.insert name a env
-      Error s   -> raiseError s
+      Right a -> put $ Map.insert name a env
+      Left  s -> raiseError s
 
   --Execute an if-statement
   execute (If ex stmt) = execute $ IfElse ex stmt Noop
@@ -80,20 +80,20 @@ module Executor(execute) where
     env <- get
     let predicate = evalExp env ex
     case predicate of
-      Success (MyBool True)  -> execute ifStmt
-      Success (MyBool False) -> execute elseStmt
-      Error s                -> raiseError s
-      _                      -> raiseError "Invalid type in if-statement"
+      Right (MyBool True)  -> execute ifStmt
+      Right (MyBool False) -> execute elseStmt
+      Left  s              -> raiseError s
+      _                    -> raiseError "Invalid type in if-statement"
 
   --Execute a while loop
   execute (While ex stmt) = do
     env <- get
     let predicate = evalExp env ex
     case predicate of
-      Success (MyBool True)   -> execute stmt >> execute (While ex stmt)
-      Success (MyBool False)  -> next
-      Error s                 -> raiseError s
-      Success a               -> raiseError ("Invalid type in while-statement: " ++ show a)
+      Right (MyBool True)   -> execute stmt >> execute (While ex stmt)
+      Right (MyBool False)  -> next
+      Left  s               -> raiseError s
+      Right a               -> raiseError ("Invalid type in while-statement: " ++ show a)
 
   --Execute a for loop
   execute (For assign predicate change stmt) = do
@@ -121,18 +121,18 @@ module Executor(execute) where
     env <- get
     let value = evalExp env ex
     lift $ putStrLn (case value of
-      Success a -> show a
-      Error s -> s)
+      Right a -> show a
+      Left  s -> s)
 
   --Execute a wait statement
   execute (Wait ex) = do
     env <- get
     let time = evalExp env ex
     case time of
-      Success (MyDec t) -> delay t
-      Success (MyInt t) -> delay $ fromIntegral t  --Convert to double
-      Success _         -> raiseError "Invalid type in wait statement"
-      Error   s         -> raiseError s
+      Right (MyDec t) -> delay t
+      Right (MyInt t) -> delay $ fromIntegral t  --Convert to double
+      Right _         -> raiseError "Invalid type in wait statement"
+      Left  s         -> raiseError s
     where toMicros t = round $ t * 1000000
           delay = lift .threadDelay . toMicros
 

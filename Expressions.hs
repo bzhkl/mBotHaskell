@@ -5,15 +5,15 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   import qualified NumberParser as NumParser
   import StringParser
   import SequenceParser
-  import Interpreter
   import Control.Monad
   import MBotLibrary
 
   type Environment = Map.Map String Value
   type Name = String
+  type IValue = Either String Value
 
   -- The 'Value' datatype represents a primitive value in our cute little language.
-  data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool | Fun (Value -> M Value) | MyMBot Device
+  data Value = MyInt Int | MyDec Double | MyStr String | MyBool Bool | Fun (Value -> IValue) | MyMBot Device
 
   -- The 'Exp' datatype represents an expression which can be evaluated.
   data Exp = Lit Value | BinOp Exp Op Exp | UnOp Op Exp | Var Name | Lam Name Exp | App Exp Exp
@@ -28,7 +28,7 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
             deriving (Show)
 
   --Evaluate an expression
-  evalExp :: Environment -> Exp -> M Value
+  evalExp :: Environment -> Exp -> IValue
   evalExp _   (Lit t)        = return t
   evalExp env (BinOp a op b) = mapM (evalExp env) [a, b] >>= \[v1, v2] -> evalBinOp v1 op v2
   evalExp env (UnOp op ex)   = evalExp env ex >>= \v -> evalUnOp op v
@@ -37,41 +37,42 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   evalExp env (App a b)      = mapM (evalExp env) [a, b] >>= \[lam, arg] -> evalFun lam arg
 
   --Find a variable in the environment
-  lookup               :: Name -> Environment -> M Value
+  lookup :: Name -> Environment -> IValue
   lookup x m = case Map.lookup x m of
     Just v -> return v
-    Nothing -> errorM ("Unbound variable: " ++ x)
+    Nothing -> Left ("Unbound variable: " ++ x)
 
   --Evaluate a unary operation
-  evalUnOp :: Op -> Value -> M Value
+  evalUnOp :: Op -> Value -> IValue
+
   evalUnOp (:+:) (MyInt a)  = return $ MyInt  a
   evalUnOp (:-:) (MyInt a)  = return $ MyInt  (-a)
   evalUnOp (:+:) (MyDec a)  = return $ MyDec  a
   evalUnOp (:-:) (MyDec a)  = return $ MyDec  (-a)
   evalUnOp (:!:) (MyBool a) = return $ MyBool (not a)
-  evalUnOp op a             = errorM $ "Unary operation " ++ show op ++
+  evalUnOp op a             = Left   $ "Unary operation " ++ show op ++
                                        " is not supported on " ++ show a ++
                                        "."
   --Evaluate a function
-  evalFun :: Value -> Value -> M Value
+  evalFun :: Value -> Value -> IValue
   evalFun (Fun k) a = k a
-  evalFun a b = errorM  $ "Unable to apply " ++ show a ++
+  evalFun a b = Left  $ "Unable to apply " ++ show a ++
                        " with argument" ++ show b ++ "."
 
   --Evaluate a binary operation
-  evalBinOp :: Value -> Op -> Value -> M Value
+  evalBinOp :: Value -> Op -> Value -> IValue
   evalBinOp  (MyInt a)   op   (MyInt b)   = evalIntOp a op b
   evalBinOp  (MyDec a)   op   (MyDec b)   = evalDecOp a op b
   evalBinOp  (MyStr a)   op   (MyStr b)   = evalStringOp a op b
   evalBinOp  (MyBool a)  op   (MyBool b)  = evalBoolOp a op b
   evalBinOp  (MyStr a)   op   b           = evalStringOp a op (show b)
   evalBinOp  a           op   (MyStr b)   = evalStringOp (show a) op b
-  evalBinOp  a           op   b           = errorM ("Unable to perform operation "
+  evalBinOp  a           op   b           = Left ("Unable to perform operation "
                                                    ++ show op ++ " on arguments "
                                                    ++ show a ++ " and "
                                                    ++ show b ++ ".")
   --Evaluate an binary operation with int values
-  evalIntOp :: Int -> Op -> Int -> M Value
+  evalIntOp :: Int -> Op -> Int -> IValue
   evalIntOp a (:+:) b = return $ MyInt (a + b)
   evalIntOp a (:-:) b = return $ MyInt (a - b)
   evalIntOp a (:*:) b = return $ MyInt (a * b)
@@ -82,12 +83,12 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   evalIntOp a (:<=:) b = return $ MyBool (a <= b)
   evalIntOp a (:==:) b = return $ MyBool (a == b)
   evalIntOp a (:!=:) b = return $ MyBool (a /= b)
-  evalIntOp a op     b = errorM $ "Operation " ++ show op ++
+  evalIntOp a op     b = Left $ "Operation " ++ show op ++
                                   " is not supported on " ++ show a ++
                                   " and " ++ show b ++ "."
 
   --Evaluate a binary operation with doubles
-  evalDecOp :: Double -> Op -> Double -> M Value
+  evalDecOp :: Double -> Op -> Double -> IValue
   evalDecOp a (:+:) b = return $ MyDec (a + b)
   evalDecOp a (:-:) b = return $ MyDec (a - b)
   evalDecOp a (:*:) b = return $ MyDec (a * b)
@@ -98,24 +99,24 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   evalDecOp a (:<=:) b = return $ MyBool (a <= b)
   evalDecOp a (:==:) b = return $ MyBool (a == b)
   evalDecOp a (:!=:) b = return $ MyBool (a /= b)
-  evalDecOp a op     b = errorM $ "Operation " ++ show op ++
+  evalDecOp a op     b = Left $ "Operation " ++ show op ++
                                   " is not supported on " ++ show a ++
                                   " and " ++ show b ++ "."
 
   --Evaluate a binary operation with booleans values
-  evalBoolOp :: Bool -> Op -> Bool -> M Value
+  evalBoolOp :: Bool -> Op -> Bool -> IValue
   evalBoolOp a (:&&:) b = return $ MyBool (a && b)
   evalBoolOp a (:||:) b = return $ MyBool (a || b)
   evalBoolOp a (:==:) b = return $ MyBool (a == b)
   evalBoolOp a (:!=:) b = return $ MyBool (a /= b)
-  evalBoolOp _ _ _      = errorM "Unsupported operation on boolean values."
+  evalBoolOp _ _ _      = Left "Unsupported operation on boolean values."
 
   --Evaluate a binary operation with strings
-  evalStringOp :: String -> Op -> String -> M Value
+  evalStringOp :: String -> Op -> String -> IValue
   evalStringOp a (:+:)  b  = return $ MyStr (a ++ b)
   evalStringOp a (:==:) b  = return $ MyBool (a == b)
   evalStringOp a (:!=:) b  = return $ MyBool (a /= b)
-  evalStringOp _ _ _       = errorM "Unsupported operation on string values."
+  evalStringOp _ _ _       = Left "Unsupported operation on string values."
 
   --Parse an expression
   parseExp :: Parser Exp
@@ -133,29 +134,17 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   parseExpBracketN n = roundBracket $ sepByN n parseExp (wToken ',')
 
   parseUnOp :: Parser Exp
-  parseUnOp = parsePlus `mplus` parseMin `mplus` parseNot
-              where parsePlus = makeUnOp "+" (:+:)
-                    parseMin  = makeUnOp "-" (:-:)
-                    parseNot  = makeUnOp "!" (:!:)
+  parseUnOp = makeUnOp "+" (:+:) `mplus` makeUnOp "-" (:-:) `mplus`
+              makeUnOp "!" (:!:)
 
   --Parse a BinOp operation
   parseBinOp :: Parser Exp
-  parseBinOp = parsePlus `mplus` parseMin `mplus` parseMul `mplus`
-               parseDiv  `mplus` parseAnd `mplus` parseOr  `mplus`
-               parseGt   `mplus` parseLt  `mplus` parseGte `mplus`
-               parseLte  `mplus` parseEq  `mplus` parseNeq
-               where parsePlus  = makeBinOp "+"   (:+:)
-                     parseMin   = makeBinOp "-"   (:-:)
-                     parseMul   = makeBinOp "*"   (:*:)
-                     parseDiv   = makeBinOp "/"   (:/:)
-                     parseAnd   = makeBinOp "&&"  (:&&:)
-                     parseOr    = makeBinOp "||"  (:||:)
-                     parseGt    = makeBinOp ">"   (:>:)
-                     parseLt    = makeBinOp "<"   (:<:)
-                     parseGte   = makeBinOp ">="  (:>=:)
-                     parseLte   = makeBinOp "<="  (:<=:)
-                     parseEq    = makeBinOp "=="  (:==:)
-                     parseNeq   = makeBinOp "!="  (:!=:)
+  parseBinOp = makeBinOp "+"  (:+:)  `mplus` makeBinOp "-"  (:-:)  `mplus`
+               makeBinOp "*"  (:*:)  `mplus` makeBinOp "/"  (:/:)  `mplus`
+               makeBinOp "&&" (:&&:) `mplus` makeBinOp "||" (:||:) `mplus`
+               makeBinOp ">"  (:>:)  `mplus` makeBinOp "<"  (:<:)  `mplus`
+               makeBinOp ">=" (:>=:) `mplus` makeBinOp "<=" (:<=:) `mplus`
+               makeBinOp "==" (:==:) `mplus` makeBinOp "!=" (:!=:)
 
   --Parse a boolean value
   parseBool :: Parser Exp
@@ -165,48 +154,38 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
 
   --Parse a string
   parseString :: Parser Exp
-  parseString = bracket' (token '"') (wToken '"') (do
-    str <- star $ notToken '"'
-    return . Lit . MyStr $ str)
+  parseString = bracket' (token '"') (wToken '"') $
+                (Lit . MyStr) <$> star (notToken '"')
 
   --Parse an int value
   parseInt :: Parser Exp
-  parseInt = fmap (Lit . MyInt) (addWhitespace NumParser.parseInt)
+  parseInt = (Lit . MyInt) <$> addWhitespace NumParser.parseInt
 
   --Parse a decimal value
   parseDec :: Parser Exp
-  parseDec = fmap (Lit . MyDec) (addWhitespace NumParser.parseDec)
+  parseDec = (Lit . MyDec) <$> addWhitespace NumParser.parseDec
 
   --Parse a variable name
   parseName :: Parser Exp
-  parseName = fmap Var wIdentifier
+  parseName = Var <$> wIdentifier
 
   --Parse a lambda expression
   parseLam :: Parser Exp
-  parseLam = roundBracket $ do
-    name <- wIdentifier
-    _ <- wMatch "=>"
-    ex <- parseExp
-    return $ Lam name ex
+  parseLam = roundBracket $ Lam <$> wIdentifier <*> (wMatch "=>" >> parseExp)
 
   --Parse a lambda application
   parseApp :: Parser Exp
-  parseApp = roundBracket $ do
-    lam <- parseExp
-    arg <- roundBracket parseExp
-    return $ App lam arg
+  parseApp = roundBracket $ App <$> parseExp <*> roundBracket parseExp
 
   --Create a parser for a unary operation
   makeUnOp :: String -> Op -> Parser Exp
-  makeUnOp s op = fmap (UnOp op) (roundBracket $ wMatch s >> parseExp)
+  makeUnOp s op =  UnOp op <$> roundBracket (wMatch s >> parseExp)
 
   --Create a parser for a binary operation
   makeBinOp :: String -> Op -> Parser Exp
-  makeBinOp s op = roundBracket $ do
-    a <- parseExp
-    _ <- wMatch s
-    b <- parseExp
-    return $ BinOp a op b
+  makeBinOp s op = roundBracket $ BinOp <$> parseExp
+                                        <*> (wMatch s >> return op)
+                                        <*> parseExp
 
   instance Show Value where
     show (MyInt i)  = show i
