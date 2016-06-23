@@ -9,7 +9,7 @@ import qualified Data.Map.Strict as Map
 main :: IO ()
 main = do
   args <- getArgs
-  let filename = "JavaScript/" ++ head args ++ ".js"
+  let filename = head args
   file <- readFile filename
   let stmt = parse parseProgram file
   print stmt

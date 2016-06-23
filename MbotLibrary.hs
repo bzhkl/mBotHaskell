@@ -1,4 +1,4 @@
-module MBotLibrary(defaultSpeed, getDistance, getLine, leftLed,
+module MbotLibrary(defaultSpeed, getDistance, getLine, leftLed,
       rightLed, forward, backward, turnRight, turnLeft, stopMotor, openMBot, Device, Line(..)) where
   import MBot
   import Prelude hiding (getLine)

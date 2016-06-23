@@ -3,10 +3,11 @@ module Executor(execute) where
   import Expressions
   import Statements
   import qualified Data.Map.Strict as Map
+  import Data.Set
   import Control.Monad.Trans.State
   import Control.Monad.Trans.Class
   import Control.Concurrent
-  import MBotLibrary
+  import MbotLibrary
 
   execute :: Stmt -> StateT Environment IO ()
 
@@ -56,7 +57,7 @@ module Executor(execute) where
   --Execute the declaration of a new variable
   execute (name := ex) = do
     env <- get
-    let exists = name `elem` Map.keysSet env
+    let exists = name `member` Map.keysSet env
     if exists
       then raiseError "Variable name already exists"
       else let value = evalExp env ex in

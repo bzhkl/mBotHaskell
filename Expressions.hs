@@ -6,7 +6,8 @@ module Expressions (Exp, Environment, Name, Value (..), evalExp, parseExp, parse
   import StringParser
   import SequenceParser
   import Control.Monad
-  import MBotLibrary
+  import MbotLibrary
+  import Control.Applicative
 
   type Environment = Map.Map String Value
   type Name = String

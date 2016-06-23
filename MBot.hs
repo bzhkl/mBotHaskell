@@ -47,6 +47,7 @@ import GHC.Word
 import Data.Maybe
 import Data.Bits
 import Unsafe.Coerce
+import Control.Applicative
 -- The mBot protocol works by sending commands in
 -- in the following format:
 ----------------------------------------------------

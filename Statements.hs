@@ -5,10 +5,12 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
   import SequenceParser
   import Control.Monad
   import Expressions
+  import Control.Applicative
 
-  data Stmt = Noop | Name := Exp | Name ::= Exp | If Exp Stmt | While Exp Stmt |
-              Sequence [Stmt] | Block Stmt | Print Exp | For Stmt Exp Stmt Stmt |
-              Move Direction Exp | SetLed Led Exp Exp Exp | ReadSensor Sensor Name |
+  data Stmt = Noop | Name := Exp | Name ::= Exp | If Exp Stmt |
+              While Exp Stmt | Sequence [Stmt] | Block Stmt |
+              Print Exp | For Stmt Exp Stmt Stmt | Move Direction Exp |
+              SetLed Led Exp Exp Exp | ReadSensor Sensor Name |
               Wait Exp | IfElse Exp Stmt Stmt
      deriving Show
 
@@ -25,9 +27,10 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
 
   --Parse a single statement
   parseStmt :: Parser Stmt
-  parseStmt = parseBlock       `mplus` parseIf           `mplus` parseWhile `mplus`
-              parseLineComment `mplus` parseBlockComment `mplus` parseFor   `mplus`
-              parseDelimited   `mplus` parseIfElse
+  parseStmt = parseBlock        `mplus` parseIf           `mplus`
+              parseWhile        `mplus` parseLineComment  `mplus`
+              parseBlockComment `mplus` parseFor          `mplus`
+              parseDelimited    `mplus` parseIfElse
 
   --Combine the semicolon ended parse functions
   parseDelimited :: Parser Stmt
@@ -53,9 +56,10 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
                parseMove "moveForward"  Forward   `mplus`
                parseMove "moveBackward" Backward
          where parseMove name direction = Move direction <$>
-                                               (wMatch name >> parseExpBracket)
+                                          (wMatch name >> parseExpBracket)
 
-  --Parse a sequence of statements, this is the only exported function of this module
+  --Parse a sequence of statements,
+  --this is the only exported function of this module
   parseSequence :: Parser Stmt
   parseSequence = Sequence <$> star parseStmt
 
@@ -73,7 +77,7 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
 
   --Helper function used for variable assignment and variable change
   assignHelper :: Parser (String, Exp)
-  assignHelper = toPair <$> wIdentifier <*> (wToken '=' >> parseExp)
+  assignHelper = pair <$> wIdentifier <*> (wToken '=' >> parseExp)
 
   --Parse the MBot line and distance sensor
   parseSensors :: Parser Stmt
@@ -88,9 +92,12 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
   parseIf :: Parser Stmt
   parseIf = If <$> (wMatch "if" >> parseExpBracket) <*> parseBlock
 
+  --Parse an if else statement
   parseIfElse :: Parser Stmt
   parseIfElse = do
+    --Parse an if statement
     (If ex ifStmt) <- parseIf
+    --Parse the else part
     _ <- wMatch "else"
     elseStmt <- parseBlock
     return $ IfElse ex ifStmt elseStmt
@@ -98,11 +105,11 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
   --Parse a for loop
   parseFor :: Parser Stmt
   parseFor = wMatch "for" >> do
-    (assign, predicate, change) <- roundBracket (do
-        a <- parseDeclare
-        p <- bracket delim parseExp delim
-        c <- parseChange
-        return (a, p, c))
+    --Parser for the three parts inside a for statement
+    let partsParser = triple <$> parseDeclare <*>
+                      bracket delim parseExp delim <*> parseChange
+    --Surround with round brackets
+    (assign, predicate, change) <- roundBracket partsParser
     stmt <- parseBlock
     return $ For assign predicate change stmt
 
@@ -130,6 +137,10 @@ module Statements (Stmt (..), Direction (..), Led(..), Sensor(..), parseProgram)
   delim :: Parser Char
   delim = addWhitespace (token ';')
 
-  --Helper function to create pair
-  toPair :: a -> b -> (a, b)
-  toPair a b = (a, b)
+  --Helper function to create a pair
+  pair :: a -> b -> (a, b)
+  pair a b = (a, b)
+
+  --Helper function to create a triple
+  triple :: a -> b -> c -> (a, b, c)
+  triple a b c = (a, b, c)
